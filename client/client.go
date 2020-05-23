@@ -22,8 +22,12 @@ const (
 var (
 	LocalConfig = &conf.StorageConfig{}
 	gloginData  = &LoginData{}
+	gloger      = &log.Logger{}
 )
 
+func SetLogger(logger *log.Logger) {
+	gloger = logger
+}
 func SetOrGeneratePrivateKey(priv string) string {
 
 	if LocalConfig.PrivateKey != "" {
@@ -56,14 +60,19 @@ func SetUserInfo(username, password string) {
 
 func SetServerInfo(serveraddr string) {
 	LocalConfig.ServerAddr = serveraddr
-	log.Println("set server addr ", serveraddr)
+	gloger.Println("set server addr ", serveraddr)
+}
+
+func GerServerInfo() string {
+	return LocalConfig.ServerAddr + ":" + strconv.Itoa(ServerPort)
 }
 
 func requestToServer(cmd *Cmd) ([]byte, error) {
 	serverAddr := LocalConfig.ServerAddr + ":" + strconv.Itoa(ServerPort)
-	log.Println("request to server", serverAddr)
+	gloger.Println("request to server", serverAddr)
 	conn, err := net.Dial("udp", serverAddr)
 	if err != nil {
+		gloger.Println("net.Dial failed, err", err)
 		return nil, err
 	}
 	defer conn.Close()
