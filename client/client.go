@@ -56,11 +56,12 @@ func SetUserInfo(username, password string) {
 
 func SetServerInfo(serveraddr string) {
 	LocalConfig.ServerAddr = serveraddr
+	log.Println("set server addr ", serveraddr)
 }
 
 func requestToServer(cmd *Cmd) ([]byte, error) {
 	serverAddr := LocalConfig.ServerAddr + ":" + strconv.Itoa(ServerPort)
-	//log.Println("request to server", serverAddr)
+	log.Println("request to server", serverAddr)
 	conn, err := net.Dial("udp", serverAddr)
 	if err != nil {
 		return nil, err
