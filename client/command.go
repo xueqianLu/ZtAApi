@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	. "github.com/xueqianLu/ZtAApi/common"
@@ -119,17 +120,19 @@ func (l *Cmd) Bytes() []byte {
 }
 
 func NewCommand(name, pwd string, packet *Packet) *Cmd {
+	var logger = Getlog()
 	cmd := &Cmd{CmdType: packet.Ptype}
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
 
 	pwdSha := SHA256([]byte(pwd))
-	//log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
+	logger.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
 	aeskey := BytesXor(pwdSha[0:16], pwdSha[16:])
 	cmd.EncPacket = AESEncrypt(packet.Bytes(), aeskey)
 
 	cmd.GenHMAC(aeskey)
+	logger.Printf("New command %v\n", cmd)
 
 	return cmd
 }

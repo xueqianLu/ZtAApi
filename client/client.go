@@ -22,13 +22,15 @@ const (
 var (
 	LocalConfig = &conf.StorageConfig{}
 	gloginData  = &LoginData{}
-	gloger      = &log.Logger{}
 )
 
 func SetLogger(logger *log.Logger) {
-	gloger = logger
+	common.Setlog(logger)
 }
+
 func SetOrGeneratePrivateKey(priv string) string {
+	var logger = common.Getlog()
+	logger.Println("SetOrGeneratePrivateKey:", priv)
 
 	if LocalConfig.PrivateKey != "" {
 		// already have privatekey.
@@ -54,13 +56,16 @@ func SetOrGeneratePrivateKey(priv string) string {
 }
 
 func SetUserInfo(username, password string) {
+	var logger = common.Getlog()
+	logger.Println("SetUserInfo:", username)
 	LocalConfig.UserName = username
 	LocalConfig.Password = password
 }
 
 func SetServerInfo(serveraddr string) {
+	var logger = common.Getlog()
 	LocalConfig.ServerAddr = serveraddr
-	gloger.Println("set server addr ", serveraddr)
+	logger.Println("set server addr ", serveraddr)
 }
 
 func GerServerInfo() string {
@@ -68,15 +73,17 @@ func GerServerInfo() string {
 }
 
 func requestToServer(cmd *Cmd) ([]byte, error) {
+	var logger = common.Getlog()
+
 	serverAddr := LocalConfig.ServerAddr + ":" + strconv.Itoa(ServerPort)
-	gloger.Println("request to server", serverAddr)
+	logger.Println("request to server", serverAddr)
 	conn, err := net.Dial("udp", serverAddr)
 	if err != nil {
-		gloger.Println("net.Dial failed, err", err)
+		logger.Println("net.Dial failed, err", err)
 		return nil, err
 	}
 	defer conn.Close()
-	//log.Println("write to server ", hex.EncodeToString(cmd.Bytes()))
+	logger.Println("write to server ", hex.EncodeToString(cmd.Bytes()))
 	if _, err = conn.Write(cmd.Bytes()); err != nil {
 		return nil, err
 	}
@@ -87,9 +94,9 @@ func requestToServer(cmd *Cmd) ([]byte, error) {
 	msg := make([]byte, MaxReadBuffer)
 	readLen := 0
 	go func() {
-		//log.Println("wait to read msg")
+		//logger.Println("wait to read msg")
 		readLen, err = conn.Read(msg)
-		log.Println("read msg from server len", readLen, "msg", hex.EncodeToString(msg))
+		logger.Println("read msg from server len", readLen, "msg", hex.EncodeToString(msg))
 		ch <- err
 	}()
 
@@ -117,18 +124,25 @@ func GetZtALoginInfo() string {
 
 func ClientLogin(sysinfostr string) error {
 	var err error
-
+	var logger = common.Getlog()
 	var res, decPac []byte
 	local := LocalConfig
 
 	var sysinfo = &common.SystemInfo{}
 	err = json.Unmarshal([]byte(sysinfostr), &sysinfo)
 	if err != nil {
-		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
+		logger.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
 		return err
 	}
 
-	cmd, _ := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId, *sysinfo)
+	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId, *sysinfo)
+	if cmd == nil {
+		logger.Println("new login cmd is null")
+	}
+	if e != nil {
+		logger.Println("NewLoginCmd failed", "err", e.Error())
+		return e
+	}
 	res, err = requestToServer(cmd)
 	if err != nil {
 		return err
@@ -141,7 +155,7 @@ func ClientLogin(sysinfostr string) error {
 
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
+		logger.Println("decpac unmarshal to server response failed.")
 		return err
 	}
 	//log.Printf("decode login response status = %d\n", head.Status)
@@ -162,16 +176,14 @@ func ClientLogin(sysinfostr string) error {
 func ClientLogout(force bool) error {
 	var res, decPac []byte
 	var err error
-	//log.Println("client logout, force =", force)
-
+	var logger = common.Getlog()
 	// stop lifetime keeper routine.
-	//log.Println("client logout, force =", force)
 	if !force {
-		log.Println("client logout, force =", force)
+		logger.Println("client logout, force =", force)
 		local := LocalConfig
 		cmd, _ := NewLogoutCmd(local.UserName, local.Password, local.PublicKey)
 		res, err = requestToServer(cmd)
-		log.Println("send to server logout cmd:", hex.EncodeToString(cmd.Bytes()))
+		logger.Println("send to server logout cmd:", hex.EncodeToString(cmd.Bytes()))
 		if err != nil {
 			return err
 		}
@@ -183,7 +195,7 @@ func ClientLogout(force bool) error {
 
 		head := &ServerResponse{}
 		if err = json.Unmarshal(decPac, &head); err != nil {
-			log.Println("decpac unmarshal to server response failed.")
+			logger.Println("decpac unmarshal to server response failed.")
 			return err
 		}
 		if head.Status != 1 {
@@ -197,6 +209,7 @@ func ClientLogout(force bool) error {
 
 func ClientChangePwd(newpwd string) error {
 	local := LocalConfig
+	var logger = common.Getlog()
 	cmd, _ := NewChangePwdCmd(local.UserName, local.Password, newpwd)
 	res, err := requestToServer(cmd)
 	if err != nil {
@@ -210,7 +223,7 @@ func ClientChangePwd(newpwd string) error {
 
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
+		logger.Println("decpac unmarshal to server response failed.")
 		return err
 	}
 	if head.Status != 1 {
