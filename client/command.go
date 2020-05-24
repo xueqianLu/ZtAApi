@@ -138,7 +138,10 @@ func NewCommand(name, pwd string, packet *Packet) *Cmd {
 }
 
 func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sysinfo SystemInfo) (*Cmd, error) {
+	var logger = Getlog()
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, MachineInfo: sysinfo}
+	logger.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
+	logger.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}

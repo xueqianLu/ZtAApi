@@ -134,6 +134,8 @@ func ClientLogin(sysinfostr string) error {
 		logger.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
 		return err
 	}
+	logger.Println("client login sysinfostr", sysinfostr)
+	logger.Println("client login sysinfo", sysinfo)
 
 	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId, *sysinfo)
 	if cmd == nil {
