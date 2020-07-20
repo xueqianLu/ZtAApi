@@ -8,8 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
-	"log"
 )
 
 var (
@@ -64,9 +62,9 @@ func PKCS7UnPadding(origData []byte) []byte {
 
 // HMAC SHA256
 func HMAC_SHA256(data []byte, key []byte) *Hash {
-	log.Println("HMAC:data", hex.EncodeToString(data))
+	//log.Println("HMAC:data", hex.EncodeToString(data))
 	k := BytesCombine(key, []byte(ZTAIV))
-	log.Println("HMAC:key", hex.EncodeToString(k))
+	//log.Println("HMAC:key", hex.EncodeToString(k))
 	h := hmac.New(sha256.New, k)
 	h.Write(data)
 	hmac := &Hash{}

@@ -3,14 +3,18 @@ package client
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
+	"github.com/tjfoc/gmsm/sm2"
 	. "github.com/xueqianLu/ZtAApi/common"
 	"log"
+	"time"
 )
 
 const (
-	ClientID               = "AZEROTRUSTNETWORKACCESSTOANYONEL"
+	ClientID         = "AZEROTRUSTNETWORKACCESSTOANYONEL"
+	CertCmdType byte = 0x01
+	UserCmdType byte = 0x02
+
 	LoginRequestMsg   byte = 0x01
 	LoginResponMsg    byte = 0x02
 	ChangePwdMsg      byte = 0x03
@@ -29,78 +33,137 @@ func (p Packet) Bytes() []byte {
 	return bsb.Bytes()
 }
 
-type AdminLoginReqPacket struct {
-	//Type     int    `json:"type"`
+type Command interface {
+	Type() byte
+	Data() []byte
 }
 
-func (l AdminLoginReqPacket) Valid() bool {
-	return true //l.Type == int(AdminLoginRequest)
-}
-
-func (l AdminLoginReqPacket) Bytes() []byte {
-	bs := make([]byte, 0)
-
-	return bs
-}
-
-type LoginReqPacket struct {
-	MachineInfo SystemInfo `json:"system_info"`
-	DeviceID    string     `json:"device_id"`
-	Pubkey      string     `json:"pubkey"`
-}
-
-func (l LoginReqPacket) Valid() bool {
-	if (len(l.DeviceID) != 64) || (len(l.Pubkey) != 44) {
-		return false
-	}
-	return true
-}
-
-func (l LoginReqPacket) Bytes() []byte {
-	bs, err := json.Marshal(l)
-	if err != nil {
-		return nil
-	}
-
-	return bs
-}
-
-type ChangePwdPacket struct {
-	Passwd string `json:"passwd"`
-}
-
-func (c ChangePwdPacket) Bytes() []byte {
-	bs, err := json.Marshal(c)
-	if err != nil {
-		return nil
-	}
-
-	return bs
-}
-
-type LogoutPacket struct {
-	Pubkey string `json:"pubkey"`
-}
-
-func (p LogoutPacket) Bytes() []byte {
-	bs, err := json.Marshal(p)
-	if err != nil {
-		return nil
-	}
-
-	return bs
-}
-
-type Cmd struct {
-	CmdType   byte
+type UserCmd struct {
 	CheckVal  Hash
 	UserIndex Hash
 	Random    Hash
+	CmdType   byte
+	EncLength [2]byte
+	EncPacket []byte
+	Signature []byte
+}
+
+func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
+	enclen := len(u.EncPacket)
+	u.EncLength[0] = byte(enclen >> 8 & 0xff)
+	u.EncLength[1] = byte(enclen & 0xff)
+
+	s := make([]byte, 1)
+	s[0] = u.CmdType
+
+	data := BytesCombine(u.CheckVal[:], u.UserIndex[:], u.Random[:], s, u.EncLength[:], u.EncPacket[:])
+
+	signature, err := SM2PrivSign(privk, data)
+	if err != nil {
+		log.Println("GenSignature failed, err ", err)
+		return err
+	}
+	u.Signature = signature
+	return nil
+}
+
+func (u *UserCmd) Type() byte {
+	return u.CmdType
+}
+
+func (u *UserCmd) Data() []byte {
+	s := make([]byte, 1)
+	s[0] = u.CmdType
+	return BytesCombine(u.CheckVal[:], u.UserIndex[:], u.Random[:], s, u.EncLength[:], u.EncPacket, u.Signature[:])
+}
+
+func NewUserCommand(username string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate, packet *Packet) *UserCmd {
+	var logger = Getlog()
+	var err error
+	cmd := &UserCmd{CmdType: UserCmdType}
+	cmd.Random = GenRandomHash()
+	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
+	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(username)), cmd.Random[:]))
+
+	cmd.EncPacket, err = SM2CertEncrypt(manager_cert, packet.Bytes())
+	if err != nil {
+		logger.Println("manager cert encrypt failed,", err)
+		return nil
+	}
+
+	if err = cmd.GenSignature(privk); err != nil {
+		logger.Println("gensignature failed,", err)
+		return nil
+	}
+
+	logger.Printf("NewUserCommand %v\n", cmd)
+	return cmd
+}
+
+func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sysinfo SystemInfo,
+	privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	var logger = Getlog()
+	pwdhash := SHA256([]byte(passwd))
+	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, MachineInfo: sysinfo, PwdHash: hex.EncodeToString(pwdhash)}
+	logger.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
+	logger.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
+	if !lp.Valid() {
+		return nil, errors.New("invalid param")
+	}
+	//log.Println("loginReqpacket:", string(lp.Bytes()))
+
+	p := &Packet{LoginRequestMsg, lp.Bytes()}
+	cmd := NewUserCommand(name, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewAdminLoginCmd(name string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	pwdhash := SHA256([]byte(passwd))
+	lp := AdminLoginReqPacket{PwdHash: hex.EncodeToString(pwdhash)}
+	if !lp.Valid() {
+		return nil, errors.New("invalid param")
+	}
+
+	p := &Packet{AdminLoginRequest, lp.Bytes()}
+	cmd := NewUserCommand(name, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewChangePwdCmd(name string, passwd string, newpwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	oldpwdhash := SHA256([]byte(passwd))
+	c := ChangePwdPacket{OldPwdHash: hex.EncodeToString(oldpwdhash), Passwd: newpwd}
+	p := &Packet{ChangePwdMsg, c.Bytes()}
+	cmd := NewUserCommand(name, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewLogoutCmd(name string, passwd string, pubkey string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	pwdhash := SHA256([]byte(passwd))
+	c := LogoutPacket{PwdHash: hex.EncodeToString(pwdhash), Pubkey: pubkey}
+	p := &Packet{LogoutRequestMsg, c.Bytes()}
+	cmd := NewUserCommand(name, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+type HmacCmd struct {
+	CheckVal  Hash
+	UserIndex Hash
+	Random    Hash
+	CmdType   byte
+	//EncLength [2]byte
 	EncPacket []byte
 	HMAC      Hash
 }
 
-func (l *Cmd) GenHMAC(key []byte) {
+func (l *HmacCmd) GenHMAC(key []byte) {
+	//enclen := len(l.EncPacket)
+	//l.EncLength[0] = byte(enclen>>8 & 0xff)
+	//l.EncLength[1] = byte(enclen & 0xff)
+
 	s := make([]byte, 1)
 	s[0] = l.CmdType
 
@@ -113,15 +176,19 @@ func (l *Cmd) GenHMAC(key []byte) {
 	l.HMAC = *HMAC_SHA256(data, key)
 }
 
-func (l *Cmd) Bytes() []byte {
-	s := make([]byte, 1)
-	s[0] = l.CmdType
-	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.Random[:], l.EncPacket, l.HMAC[:])
+func (l *HmacCmd) Type() byte {
+	return l.CmdType
 }
 
-func NewCommand(name, pwd string, packet *Packet) *Cmd {
+func (l *HmacCmd) Data() []byte {
+	s := make([]byte, 1)
+	s[0] = l.CmdType
+	return BytesCombine(l.CheckVal[:], l.UserIndex[:], l.Random[:], s, l.EncPacket, l.HMAC[:])
+}
+
+func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
 	var logger = Getlog()
-	cmd := &Cmd{CmdType: packet.Ptype}
+	cmd := &HmacCmd{CmdType: CertCmdType}
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
@@ -137,163 +204,10 @@ func NewCommand(name, pwd string, packet *Packet) *Cmd {
 	return cmd
 }
 
-func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sysinfo SystemInfo) (*Cmd, error) {
-	var logger = Getlog()
-	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, MachineInfo: sysinfo}
-	logger.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
-	logger.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
-	if !lp.Valid() {
-		return nil, errors.New("invalid param")
-	}
-	//log.Println("loginReqpacket:", string(lp.Bytes()))
-
-	p := &Packet{LoginRequestMsg, lp.Bytes()}
-	cmd := NewCommand(name, passwd, p)
+func NewExchangeCertCmd(name string, passwd string, csr string) (*HmacCmd, error) {
+	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix()}
+	p := &Packet{CertCmdType, c.Bytes()}
+	cmd := NewHmacCommand(name, passwd, p)
 
 	return cmd, nil
-}
-
-func NewAdminLoginCmd(name string, passwd string) (*Cmd, error) {
-	lp := AdminLoginReqPacket{}
-	if !lp.Valid() {
-		return nil, errors.New("invalid param")
-	}
-
-	p := &Packet{AdminLoginRequest, lp.Bytes()}
-	cmd := NewCommand(name, passwd, p)
-
-	return cmd, nil
-}
-
-func NewChangePwdCmd(name string, passwd string, newpwd string) (*Cmd, error) {
-	c := ChangePwdPacket{Passwd: newpwd}
-	p := &Packet{ChangePwdMsg, c.Bytes()}
-	cmd := NewCommand(name, passwd, p)
-
-	return cmd, nil
-}
-
-func NewLogoutCmd(name string, passwd string, pubkey string) (*Cmd, error) {
-	c := LogoutPacket{Pubkey: pubkey}
-	p := &Packet{LogoutRequestMsg, c.Bytes()}
-	cmd := NewCommand(name, passwd, p)
-
-	return cmd, nil
-}
-
-func GetResponseDec(name string, pwd string, data []byte) ([]byte, error) {
-	if len(data) < 96 {
-		return nil, errors.New("Invalid response")
-	}
-	r_userindx := data[:32]
-	r_random := data[32:64]
-	r_encpac := data[64 : len(data)-32]
-	r_hmac := data[len(data)-32:]
-
-	hmac_data := BytesCombine(r_userindx, r_random, r_encpac)
-
-	userNameSha := SHA256([]byte(name))
-	userIndex := BytesXor(userNameSha, r_random)
-	if bytes.Compare(r_userindx, userIndex) != 0 {
-		return nil, errors.New("not match userindex")
-	}
-	pwdSha := SHA256([]byte(pwd))
-	//log.Println("ParseLoginResponse pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
-
-	aeskey := BytesXor(pwdSha[0:16], pwdSha[16:])
-	//log.Println("ParseLoginResponse aeskey=", hex.EncodeToString(aeskey))
-
-	hmac_hash := HMAC_SHA256(hmac_data, aeskey)
-	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
-	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
-	if result := bytes.Compare(hmac_hash[:], r_hmac); result != 0 {
-		return nil, errors.New("hmac not match")
-	}
-
-	decPac := AESDecrypt(r_encpac, aeskey)
-	//log.Println("AESDec loginRes:%s", hex.EncodeToString(decPac))
-	//log.Println("AESDec loginRes:%s", string(decPac))
-
-	return decPac, nil
-}
-
-func ParseLoginResponse(name string, pwd string, data []byte) (*LoginData, error) {
-	if len(data) < 96 {
-		return nil, errors.New("response too short")
-	}
-	r_userindx := data[:32]
-	r_random := data[32:64]
-	r_encpac := data[64 : len(data)-32]
-	r_hmac := data[len(data)-32:]
-
-	hmac_data := BytesCombine(r_userindx, r_random, r_encpac)
-
-	userNameSha := SHA256([]byte(name))
-	userIndex := BytesXor(userNameSha, r_random)
-	if bytes.Compare(r_userindx, userIndex) != 0 {
-		return nil, errors.New("not match userindex")
-	}
-	pwdSha := SHA256([]byte(pwd))
-	//log.Println("ParseLoginResponse pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
-
-	aeskey := BytesXor(pwdSha[0:16], pwdSha[16:])
-	//log.Println("ParseLoginResponse aeskey=", hex.EncodeToString(aeskey))
-
-	hmac_hash := HMAC_SHA256(hmac_data, aeskey)
-	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
-	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
-	if result := bytes.Compare(hmac_hash[:], r_hmac); result != 0 {
-		return nil, errors.New("hmac not match")
-	}
-
-	decPac := AESDecrypt(r_encpac, aeskey)
-	//log.Println("AESDec loginRes:%s", hex.EncodeToString(decPac))
-	//log.Println("AESDec loginRes:%s", string(decPac))
-
-	res := &LoginResponse{}
-	if err := json.Unmarshal(decPac, &res); err != nil {
-		log.Println("decpac unmarshal to loginrespacket failed.")
-		return nil, err
-	}
-	return &res.LoginData, nil
-}
-
-func ParseAdminLoginResponse(name string, pwd string, data []byte) (*AdminLoginData, error) {
-	if len(data) < 96 {
-		return nil, errors.New("response too short")
-	}
-	r_userindx := data[:32]
-	r_random := data[32:64]
-	r_encpac := data[64 : len(data)-32]
-	r_hmac := data[len(data)-32:]
-
-	hmac_data := BytesCombine(r_userindx, r_random, r_encpac)
-
-	userNameSha := SHA256([]byte(name))
-	userIndex := BytesXor(userNameSha, r_random)
-	if bytes.Compare(r_userindx, userIndex) != 0 {
-		return nil, errors.New("not match userindex")
-	}
-	pwdSha := SHA256([]byte(pwd))
-	//log.Println("ParseAdminLoginResponse pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
-
-	aeskey := BytesXor(pwdSha[0:16], pwdSha[16:])
-	//log.Println("ParseLoginResponse aeskey=", hex.EncodeToString(aeskey))
-
-	hmac_hash := HMAC_SHA256(hmac_data, aeskey)
-	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
-	if result := bytes.Compare(hmac_hash[:], r_hmac); result != 0 {
-		return nil, errors.New("hmac not match")
-	}
-
-	decPac := AESDecrypt(r_encpac, aeskey)
-	//log.Println("AESDec loginRes:%s", hex.EncodeToString(decPac))
-	//log.Println("AESDec loginRes:%s", string(decPac))
-
-	res := &AdminLoginResponse{}
-	if err := json.Unmarshal(decPac, &res); err != nil {
-		log.Println("decpac unmarshal to loginrespacket failed.")
-		return nil, err
-	}
-	return &res.AdminLoginData, nil
 }
