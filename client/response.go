@@ -25,7 +25,7 @@ func GetDecryptResponseWithHmac(name string, pwd string, data []byte) ([]byte, e
 	if bytes.Compare(r_userindx, userIndex) != 0 {
 		return nil, errors.New("not match userindex")
 	}
-	pwdSha := SHA256([]byte(pwd))
+	pwdSha := SM3Hash([]byte(pwd))
 	//log.Println("ParseLoginResponse pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
 
 	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])

@@ -190,7 +190,7 @@ func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
 
-	pwdSha := SHA256([]byte(pwd))
+	pwdSha := SM3Hash([]byte(pwd))
 	log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
 	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])
 	cmd.EncPacket = SM4EncryptCBC(smkey, packet.Bytes())
