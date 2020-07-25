@@ -5,6 +5,7 @@ import (
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -63,11 +64,11 @@ func GetClientLocalConfig(rootdir string) *StorageConfig {
 
 	if config.SM2PrivkFile != "" && config.ManagerCertFile != "" {
 		if config.Sm2Priv, err = sm2.ReadPrivateKeyFromPem(config.SM2PrivkFile, nil); err != nil {
-			common.Getlog().Println("ReadPrivkey from Pem failed, err ", err)
+			log.Println("ReadPrivkey from Pem failed, err ", err)
 		}
 		csrdata, _ := ioutil.ReadFile(config.ManagerCertFile)
 		if config.ManagerCert, err = common.SM2ReadCertificateFromMem(csrdata); err != nil {
-			common.Getlog().Println("ReadCert from data failed, err ", err)
+			log.Println("ReadCert from data failed, err ", err)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/cipher"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509/pkix"
@@ -179,41 +180,36 @@ func SM3Hash(data []byte) Hash {
 	return hash
 }
 
-func SM4EncryptCBC(key sm4.SM4Key, packet []byte) (encdata []byte) {
-	if len(packet) == 0 {
-		return
-	}
-	c, e := sm4.NewCipher(key)
+func SM4EncryptCBC(key sm4.SM4Key, packet []byte) []byte {
+	block, e := sm4.NewCipher(key)
 	if e != nil {
 		println("SM4DecryptCBC new cipher error", e)
-		return encdata
+		return nil
 	}
-	padding := PKCS7Padding(packet, c.BlockSize())
-	encdata = make([]byte, len(padding))
-	for i := 0; i < len(padding)/16; i++ {
-		s := i * 16
-		e := (i + 1) * 16
-		c.Encrypt(encdata[s:e], padding[s:e])
-	}
-	return encdata
+	padding := PKCS7Padding(packet, block.BlockSize())
+
+	blockMode := cipher.NewCBCEncrypter(block, []byte(ZTAIV))
+
+	crypted := make([]byte, len(padding))
+	blockMode.CryptBlocks(crypted, padding)
+
+	return crypted
 }
 
-func SM4DecryptCBC(key sm4.SM4Key, encdata []byte) (data []byte) {
-	if len(encdata) == 0 || (len(encdata)%16) != 0 {
-		println("SM4DecryptCBC Decrypt ", len(encdata))
-		return data
+func SM4DecryptCBC(key sm4.SM4Key, crypted []byte) []byte {
+	if len(crypted) == 0 || (len(crypted)%16) != 0 {
+		println("SM4DecryptCBC Decrypt ", len(crypted))
+		return nil
 	}
-	c, e := sm4.NewCipher(key)
+	block, e := sm4.NewCipher(key)
 	if e != nil {
 		println("SM4DecryptCBC new cipher failed,", e)
-		return data
+		return nil
 	}
-	decdata := make([]byte, len(encdata))
-	for i := 0; i < len(encdata)/16; i++ {
-		s := i * 16
-		e := (i + 1) * 16
-		c.Decrypt(decdata[s:e], encdata[s:e])
-	}
-	data = PKCS7UnPadding(decdata)
-	return data
+	blockMode := cipher.NewCBCDecrypter(block, []byte(ZTAIV))
+	origData := make([]byte, len(crypted))
+	blockMode.CryptBlocks(origData, crypted)
+
+	origData = PKCS7UnPadding(origData)
+	return origData
 }

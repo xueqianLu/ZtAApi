@@ -1,18 +1,21 @@
 package common
 
 import (
+	"io"
 	"log"
-	"os"
 )
 
 var (
-	gloger = log.New(os.Stdout, "", 0)
+//gloger = log.New(os.Stdout, "", 0)
 )
 
-func Setlog(loger *log.Logger) {
-	gloger = loger
+func Setlog(writer io.Writer) {
+	log.SetOutput(writer)
+	log.SetFlags(0)
 }
 
-func Getlog() *log.Logger {
-	return gloger
-}
+//
+//func Getlog() *log.Logger {
+//	log.Println()
+//	return gloger
+//}

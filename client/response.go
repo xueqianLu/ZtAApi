@@ -28,17 +28,16 @@ func GetDecryptResponseWithHmac(name string, pwd string, data []byte) ([]byte, e
 	pwdSha := SHA256([]byte(pwd))
 	//log.Println("ParseLoginResponse pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
 
-	aeskey := BytesXor(pwdSha[0:16], pwdSha[16:])
+	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])
 	//log.Println("ParseLoginResponse aeskey=", hex.EncodeToString(aeskey))
 
-	hmac_hash := HMAC_SHA256(hmac_data, aeskey)
+	hmac_hash := HMAC_SHA256(hmac_data, smkey)
 	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
 	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
 	if result := bytes.Compare(hmac_hash[:], r_hmac); result != 0 {
 		return nil, errors.New("hmac not match")
 	}
-
-	decPac := AESDecrypt(r_encpac, aeskey)
+	decPac := SM4DecryptCBC(smkey, r_encpac)
 	//log.Println("AESDec loginRes:%s", hex.EncodeToString(decPac))
 	//log.Println("AESDec loginRes:%s", string(decPac))
 

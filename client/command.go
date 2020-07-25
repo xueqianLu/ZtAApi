@@ -56,7 +56,7 @@ func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
 	s := make([]byte, 1)
 	s[0] = u.CmdType
 
-	data := BytesCombine(u.CheckVal[:], u.UserIndex[:], u.Random[:], s, u.EncLength[:], u.EncPacket[:])
+	data := BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.Random[:], u.EncLength[:], u.EncPacket[:])
 
 	signature, err := SM2PrivSign(privk, data)
 	if err != nil {
@@ -74,11 +74,10 @@ func (u *UserCmd) Type() byte {
 func (u *UserCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = u.CmdType
-	return BytesCombine(u.CheckVal[:], u.UserIndex[:], u.Random[:], s, u.EncLength[:], u.EncPacket, u.Signature[:])
+	return BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.Random[:], u.EncLength[:], u.EncPacket, u.Signature[:])
 }
 
 func NewUserCommand(username string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate, packet *Packet) *UserCmd {
-	var logger = Getlog()
 	var err error
 	cmd := &UserCmd{CmdType: UserCmdType}
 	cmd.Random = GenRandomHash()
@@ -87,26 +86,25 @@ func NewUserCommand(username string, privk *sm2.PrivateKey, manager_cert *sm2.Ce
 
 	cmd.EncPacket, err = SM2CertEncrypt(manager_cert, packet.Bytes())
 	if err != nil {
-		logger.Println("manager cert encrypt failed,", err)
+		log.Println("manager cert encrypt failed,", err)
 		return nil
 	}
 
 	if err = cmd.GenSignature(privk); err != nil {
-		logger.Println("gensignature failed,", err)
+		log.Println("gensignature failed,", err)
 		return nil
 	}
 
-	logger.Printf("NewUserCommand %v\n", cmd)
+	log.Printf("NewUserCommand %v\n", cmd)
 	return cmd
 }
 
 func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sysinfo SystemInfo,
 	privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
-	var logger = Getlog()
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, MachineInfo: sysinfo, PwdHash: hex.EncodeToString(pwdhash)}
-	logger.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
-	logger.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
+	log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
+	log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}
@@ -183,23 +181,25 @@ func (l *HmacCmd) Type() byte {
 func (l *HmacCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
-	return BytesCombine(l.CheckVal[:], l.UserIndex[:], l.Random[:], s, l.EncPacket, l.HMAC[:])
+	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.Random[:], l.EncPacket, l.HMAC[:])
 }
 
 func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
-	var logger = Getlog()
 	cmd := &HmacCmd{CmdType: CertCmdType}
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
 
 	pwdSha := SHA256([]byte(pwd))
-	logger.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
-	aeskey := BytesXor(pwdSha[0:16], pwdSha[16:])
-	cmd.EncPacket = AESEncrypt(packet.Bytes(), aeskey)
-
-	cmd.GenHMAC(aeskey)
-	logger.Printf("New command %v\n", cmd)
+	log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
+	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])
+	cmd.EncPacket = SM4EncryptCBC(smkey, packet.Bytes())
+	if cmd.EncPacket == nil {
+		log.Println("SM4Encrypt return nil")
+		return nil
+	}
+	cmd.GenHMAC(smkey)
+	log.Printf("New command %v\n", cmd)
 
 	return cmd
 }
