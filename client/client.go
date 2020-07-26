@@ -20,7 +20,7 @@ const (
 	ServerHost     = "127.0.0.1"
 	ServerPort     = 36680
 	RequestTimeout = 10 * time.Second
-	MaxReadBuffer  = 1600
+	MaxReadBuffer  = 60000
 )
 
 var (
@@ -112,7 +112,8 @@ func prepareCsrAndPrivk(conf *conf.StorageConfig) ([]byte, error) {
 	if err != nil {
 		log.Println("Write privateKey to pem failed, err", err)
 	}
-	csr, err := common.SM2CreateCertificateRequest(conf.UserName, conf.Sm2Priv)
+	selfcsrfile := filepath.Join(conf.ConfPath, "./scsr.pem")
+	csr, err := common.SM2CreateCertificateRequest(selfcsrfile, conf.UserName, conf.Sm2Priv)
 	if err != nil {
 		log.Println("create certificate request failed, err ", err)
 		return nil, err
@@ -129,7 +130,7 @@ func ClientExchangeCert(local *conf.StorageConfig) error {
 	if err != nil {
 		return err
 	}
-	cmd, e := NewExchangeCertCmd(local.UserName, local.Password, string(csr))
+	cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr))
 	if e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
 		return e
@@ -292,10 +293,75 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	return nil
 }
 
+func AdminExchangeCert(local *conf.StorageConfig) error {
+	var err error
+	var res, decPac []byte
+	var csr []byte
+
+	csr, err = prepareCsrAndPrivk(local)
+	if err != nil {
+		return err
+	}
+	cmd, e := NewAdminExchangeCertCmd(local.UserName, local.Password, string(csr))
+	if e != nil {
+		log.Println("NewLoginCmd failed", "err", e.Error())
+		return e
+	}
+	res, err = requestToServer(local, cmd)
+	if err != nil {
+		return err
+	}
+	// den
+	decPac, err = GetDecryptResponseWithHmac(local.UserName, local.Password, res)
+	if err != nil {
+		return err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return err
+	}
+	//log.Printf("decode login response status = %d\n", head.Status)
+	if head.Status != 1 {
+		err = errors.New(head.Msg)
+		return err
+	}
+	// parse res
+	var info = &ExchangeCertResponse{}
+	if err = json.Unmarshal(decPac, &info); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return err
+	}
+	manager_certdata := []byte(info.ManagerCert)
+	local.ManagerCert, err = common.SM2ReadCertificateFromMem(manager_certdata)
+	if err != nil {
+		log.Println("Parse to certificate failed, err ", err)
+		return err
+	}
+	local.ManagerCertFile = filepath.Join(local.ConfPath, "manager.pem")
+	err = ioutil.WriteFile(local.ManagerCertFile, manager_certdata, 0755)
+	if err != nil {
+		log.Println("Write certificate to file failed, err ", err)
+	}
+
+	return nil
+}
+
 func AdminLogin(local *conf.StorageConfig) (*AdminLoginResData, error) {
 	var err error
-
 	var res, decPac []byte
+
+	if NeedExchangeCert(local) {
+		log.Println("need exchange cert.")
+		err = AdminExchangeCert(local)
+		if err != nil {
+			log.Println("exchange cert failed, err ", err)
+			return nil, err
+		}
+		log.Println("exchange cert success, goto login")
+	}
+
 	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, local.Sm2Priv, local.ManagerCert)
 	res, err = requestToServer(local, cmd)
 	if err != nil {

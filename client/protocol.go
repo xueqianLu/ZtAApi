@@ -11,7 +11,9 @@ type InvalidPacket interface {
 }
 
 type AdminLoginReqPacket struct {
-	PwdHash string `json:"pwdhash"`
+	Type      int    `json:"type"`
+	PwdHash   string `json:"pwdhash"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 func (l AdminLoginReqPacket) Valid() bool {
@@ -25,10 +27,12 @@ func (l AdminLoginReqPacket) Bytes() []byte {
 }
 
 type LoginReqPacket struct {
+	Type        int        `json:"type"`
 	MachineInfo SystemInfo `json:"system_info"`
 	DeviceID    string     `json:"device_id"`
 	Pubkey      string     `json:"pubkey"`
 	PwdHash     string     `json:"pwdhash"`
+	Timestamp   int64      `json:"timestamp"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -48,8 +52,10 @@ func (l LoginReqPacket) Bytes() []byte {
 }
 
 type ChangePwdPacket struct {
+	Type       int    `json:"type"`
 	OldPwdHash string `json:"oldpwdhash"`
 	Passwd     string `json:"passwd"`
+	Timestamp  int64  `json:"timestamp"`
 }
 
 func (c ChangePwdPacket) Valid() bool {
@@ -66,8 +72,10 @@ func (c ChangePwdPacket) Bytes() []byte {
 }
 
 type LogoutPacket struct {
-	PwdHash string `json:"pwdhash"`
-	Pubkey  string `json:"pubkey"`
+	Type      int    `json:"type"`
+	PwdHash   string `json:"pwdhash"`
+	Pubkey    string `json:"pubkey"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 func (p LogoutPacket) Valid() bool {
@@ -119,6 +127,7 @@ type LoginResData struct {
 	EndPoint     string   `json:"gateway_endpoint"`
 	ServerNumber uint32   `json:"server_num"`
 	ServerList   []string `json:"server"`
+	Key          string   `json:"key"`
 	LifeTime     int      `json:"lifetime"` // unit minutes
 }
 
