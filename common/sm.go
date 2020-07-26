@@ -9,6 +9,7 @@ import (
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/tjfoc/gmsm/sm3"
 	"github.com/tjfoc/gmsm/sm4"
+	"io/ioutil"
 	"math/big"
 )
 
@@ -41,7 +42,7 @@ func SM2ReadCertificateRequestFromMem(data []byte) (*sm2.CertificateRequest, err
 	return sm2.ReadCertificateRequestFromMem(data)
 }
 
-func SM2CreateCertificateRequest(username string, priv *sm2.PrivateKey) ([]byte, error) {
+func SM2CreateCertificateRequest(filename string, username string, priv *sm2.PrivateKey) ([]byte, error) {
 	country := "CN"
 	province := "BJ"
 	city := "BJ"
@@ -61,7 +62,18 @@ func SM2CreateCertificateRequest(username string, priv *sm2.PrivateKey) ([]byte,
 
 		SignatureAlgorithm: sm2.SM2WithSM3,
 	}
-	return sm2.CreateCertificateRequestToMem(&templateReq, priv)
+	ok, err := sm2.CreateCertificateRequestToPem(filename, &templateReq, priv)
+	if ok {
+		data, e := ioutil.ReadFile(filename)
+		if e != nil {
+			return nil, e
+		} else {
+			return data, nil
+		}
+	} else {
+		return nil, err
+	}
+	//	return sm2.CreateCertificateRequestToMem(&templateReq, priv)
 }
 
 func SM2ReadCertificateFromMem(data []byte) (*sm2.Certificate, error) {
@@ -186,8 +198,8 @@ func SM4EncryptCBC(key sm4.SM4Key, packet []byte) []byte {
 		println("SM4DecryptCBC new cipher error", e)
 		return nil
 	}
-	padding := PKCS7Padding(packet, block.BlockSize())
 
+	padding := PKCS7Padding(packet, block.BlockSize())
 	blockMode := cipher.NewCBCEncrypter(block, []byte(ZTAIV))
 
 	crypted := make([]byte, len(padding))
