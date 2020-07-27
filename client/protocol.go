@@ -11,7 +11,7 @@ type InvalidPacket interface {
 }
 
 type AdminLoginReqPacket struct {
-	Type      int    `json:"type"`
+	//Type      int    `json:"type"`
 	PwdHash   string `json:"pwdhash"`
 	Timestamp int64  `json:"timestamp"`
 }
@@ -27,7 +27,7 @@ func (l AdminLoginReqPacket) Bytes() []byte {
 }
 
 type LoginReqPacket struct {
-	Type        int        `json:"type"`
+	//Type        int        `json:"type"`
 	MachineInfo SystemInfo `json:"system_info"`
 	DeviceID    string     `json:"device_id"`
 	Pubkey      string     `json:"pubkey"`
@@ -52,7 +52,7 @@ func (l LoginReqPacket) Bytes() []byte {
 }
 
 type ChangePwdPacket struct {
-	Type       int    `json:"type"`
+	//Type       int    `json:"type"`
 	OldPwdHash string `json:"oldpwdhash"`
 	Passwd     string `json:"passwd"`
 	Timestamp  int64  `json:"timestamp"`
@@ -72,7 +72,7 @@ func (c ChangePwdPacket) Bytes() []byte {
 }
 
 type LogoutPacket struct {
-	Type      int    `json:"type"`
+	//Type      int    `json:"type"`
 	PwdHash   string `json:"pwdhash"`
 	Pubkey    string `json:"pubkey"`
 	Timestamp int64  `json:"timestamp"`
