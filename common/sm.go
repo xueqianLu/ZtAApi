@@ -143,27 +143,15 @@ func SM2PrivDecrypt(priv *sm2.PrivateKey, encdata []byte) ([]byte, error) {
 	return priv.Decrypt(encdata)
 }
 
-// return value format:signature [0:32] ==> r, signature[32:64] ==> s
 func SM2PrivSign(priv *sm2.PrivateKey, data []byte) ([]byte, error) {
 	//私钥签名
-	hash := sm3.Sm3Sum(data)
-	sig, e := priv.Sign(rand.Reader, hash[:], nil)
+	sig, e := priv.Sign(rand.Reader, data[:], nil)
 	if e != nil {
 		return nil, e
 	}
-	r, s, e := sm2.SignDataToSignDigit(sig)
-	if e != nil {
-		return nil, e
-	}
-	signature := make([]byte, 64)
-	copy(signature[:32], r.Bytes())
-	copy(signature[32:], s.Bytes())
 
-	return signature, nil
+	return sig, nil
 }
-
-// signature[0:32] r
-// signature[32:64] s
 
 func SM2CertVerifySignature(cert *sm2.Certificate, data []byte, signature []byte) bool {
 	//证书验签
@@ -174,15 +162,7 @@ func SM2CertVerifySignature(cert *sm2.Certificate, data []byte, signature []byte
 	if err != nil {
 		return false
 	}
-	r := big.NewInt(0).SetBytes(signature[:32])
-	s := big.NewInt(0).SetBytes(signature[32:])
-	sign, err := sm2.SignDigitToSignData(r, s)
-	if err != nil {
-		return false
-	}
-
-	hash := sm3.Sm3Sum(data)
-	return pubk.Verify(hash, sign)
+	return pubk.Verify(data, signature)
 }
 
 func SM3Hash(data []byte) Hash {
