@@ -51,7 +51,7 @@ func GetDecryptResponseWithSign(name string, data []byte, privk *sm2.PrivateKey,
 	r_userindx := data[:32]
 	r_random := data[32:64]
 	r_enc_length := data[64:66]
-	enc_length := int((r_enc_length[0] << 8) | (r_enc_length[1]))
+	enc_length := int16(r_enc_length[0])<<8 | int16(r_enc_length[1])&0x00ff
 	r_encpac := data[66 : 66+enc_length]
 	r_sign := data[66+enc_length:]
 
