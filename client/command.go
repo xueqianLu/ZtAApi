@@ -107,8 +107,8 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sys
 	privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, MachineInfo: sysinfo, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
-	log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
-	log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
+	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
+	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}
@@ -156,15 +156,11 @@ type HmacCmd struct {
 	UserIndex Hash
 	Random    Hash
 	CmdType   byte
-	//EncLength [2]byte
 	EncPacket []byte
 	HMAC      Hash
 }
 
 func (l *HmacCmd) GenHMAC(key []byte) {
-	//enclen := len(l.EncPacket)
-	//l.EncLength[0] = byte(enclen>>8 & 0xff)
-	//l.EncLength[1] = byte(enclen & 0xff)
 
 	s := make([]byte, 1)
 	s[0] = l.CmdType
@@ -197,7 +193,7 @@ func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
 
 	pwdSha := SM3Hash([]byte(pwd))
-	log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha[:]))
+	//log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha[:]))
 	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])
 	cmd.EncPacket = SM4EncryptCBC(smkey, packet.Bytes())
 	if cmd.EncPacket == nil {
@@ -205,7 +201,7 @@ func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
 		return nil
 	}
 	cmd.GenHMAC(smkey)
-	log.Printf("New command %v\n", cmd)
+	//log.Printf("New command %v\n", cmd)
 
 	return cmd
 }

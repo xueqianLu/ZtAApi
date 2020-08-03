@@ -222,7 +222,6 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, e
 		log.Println("decpac unmarshal to server response failed.")
 		return nil, err
 	}
-	//log.Printf("decode login response status = %d\n", head.Status)
 	if head.Status != 1 {
 		err = errors.New(head.Msg)
 		return nil, err
