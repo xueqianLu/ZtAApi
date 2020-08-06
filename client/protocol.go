@@ -21,7 +21,10 @@ func (l AdminLoginReqPacket) Valid() bool {
 }
 
 func (l AdminLoginReqPacket) Bytes() []byte {
-	bs := make([]byte, 0)
+	bs, err := json.Marshal(l)
+	if err != nil {
+		return nil
+	}
 
 	return bs
 }
