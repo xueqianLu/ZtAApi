@@ -2,6 +2,7 @@ package conf
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
 	"io/ioutil"
@@ -13,16 +14,16 @@ import (
 const (
 	ClientID           = "AZEROTRUSTNETWORKACCESSTOANYONEL"
 	ztaLocalConfigFile = "zta.json"
+	ztaUserConfigFile  = "user.json"
 )
 
-type StorageConfig struct {
-	ConfPath string `json:"configpath"`
-	UserName string `json:"username"`
-	Password string `json:"-"` // dec password
-	//EncPassword string `json:"password"`   // aes enc and base64, only used for storage.
+type UserConfig struct {
+	UserName   string `json:"username"`	  // username
+	ConfPath   string `json:"confpath"`
+	AutoLogin  bool   `json:"autologin"`  // autologin
 	PrivateKey string `json:"private"`    // private key
 	PublicKey  string `json:"-"`          // public key
-	AutoLogin  bool   `json:"autologin"`  // autologin
+
 	ServerAddr string `json:"serveraddr"` // server addr
 
 	SM2PrivkFile    string           `json:"privkpath"`   // sm2 privk file path.
@@ -31,20 +32,58 @@ type StorageConfig struct {
 	ManagerCert     *sm2.Certificate // manager cert in mem.
 }
 
-// must not return nil
-func GetClientLocalConfig(rootdir string) *StorageConfig {
-	var config = &StorageConfig{AutoLogin: false}
-	var err error
+type StorageConfig struct {
+	ConfigPath string `json:"configpath"`
+	UserName string `json:"username"`
+	Password string `json:"-"` // dec password
+	ServerAddr string `json:"serveraddr"` // server addr
+	User     *UserConfig `json:"-"`
+}
 
-	root := rootdir
-	name := filepath.Join(root, ztaLocalConfigFile)
+func GetUserConfigPath(stConfig *StorageConfig) (string,error) {
+	root := stConfig.ConfigPath
+	if stConfig.UserName == "" {
+		return "",errors.New("not set username")
+	}
+	userconfig_path := filepath.Join(root,stConfig.UserName)
+	err := os.MkdirAll(userconfig_path, os.ModeDir|0700)
+	if err != nil {
+		return "",err
+	}
+	return userconfig_path, nil
+}
+
+// get user local config, if error happen, retry. retry once.
+func GetUserLocalConfig(userpath string, username string) (*UserConfig,error) {
+	var c *UserConfig
+	var e error
+	if c,e = getUserLocalConfig(userpath, username); e != nil {
+		os.RemoveAll(userpath)
+		os.MkdirAll(userpath, os.ModeDir|0700)
+		c,e = getUserLocalConfig(userpath, username)
+	}
+	return c,e
+}
+
+func getUserLocalConfig(userpath string, username string) (*UserConfig,error) {
+	var config = &UserConfig{}
+	p := userpath
+	name := filepath.Join(p, ztaUserConfigFile)
 	content, err := ioutil.ReadFile(name)
 	if err == nil {
 		json.Unmarshal(content, &config)
 	}
-
 	if config.ConfPath == "" {
-		config.ConfPath = rootdir
+		config.ConfPath = p
+	}
+
+	// new created
+	if config.UserName == "" {
+		config.UserName = username
+	}
+
+	if config.UserName != username {
+		return nil, errors.New("unmatched local config and username")
 	}
 
 	if config.PrivateKey != "" {
@@ -71,12 +110,54 @@ func GetClientLocalConfig(rootdir string) *StorageConfig {
 			log.Println("ReadCert from data failed, err ", err)
 		}
 	}
+	return config, nil
+}
+
+// must not return nil
+func GetClientLocalConfig(rootdir string) *StorageConfig {
+	var config = &StorageConfig{}
+	var err error
+
+	root := rootdir
+	name := filepath.Join(root, ztaLocalConfigFile)
+	content, err := ioutil.ReadFile(name)
+	if err == nil {
+		json.Unmarshal(content, &config)
+	}
+
+	if config.ConfigPath == "" {
+		config.ConfigPath = rootdir
+	}
+
+	if userConfigPath,err := GetUserConfigPath(config); err == nil {
+		config.User,err = GetUserLocalConfig(userConfigPath, config.UserName)
+		if err != nil {
+			log.Println("GetUserLocalConfig failed, delete dir:", userConfigPath, ",username:", config.UserName, ",err:", err)
+			os.RemoveAll(userConfigPath)
+		}
+	}
 
 	return config
 }
 
-func ClientLocalConfigSave(rootdir string, local *StorageConfig) error {
-	root := rootdir
+func ClientUserConfigSave(userconf *UserConfig) error {
+	p := userconf.ConfPath
+	filename := filepath.Join(p, ztaUserConfigFile)
+	bytes, _ := json.Marshal(userconf)
+	err := ioutil.WriteFile(filename+".tmp", bytes, 0600)
+	if err != nil {
+		return err
+	}
+	err = os.Rename(filename+".tmp", filename)
+	if err != nil {
+		os.Remove(filename + ".tmp")
+		return err
+	}
+	return nil
+}
+
+func ClientLocalConfigSave(local *StorageConfig) error {
+	root := local.ConfigPath
 	filename := filepath.Join(root, ztaLocalConfigFile)
 	bytes, _ := json.Marshal(local)
 	err := ioutil.WriteFile(filename+".tmp", bytes, 0600)

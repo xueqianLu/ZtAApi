@@ -14,6 +14,7 @@ type AdminLoginReqPacket struct {
 	//Type      int    `json:"type"`
 	PwdHash   string `json:"pwdhash"`
 	Timestamp int64  `json:"timestamp"`
+	DeviceID    string     `json:"device_id"`
 }
 
 func (l AdminLoginReqPacket) Valid() bool {
@@ -31,7 +32,6 @@ func (l AdminLoginReqPacket) Bytes() []byte {
 
 type LoginReqPacket struct {
 	//Type        int        `json:"type"`
-	MachineInfo SystemInfo `json:"system_info"`
 	DeviceID    string     `json:"device_id"`
 	Pubkey      string     `json:"pubkey"`
 	PwdHash     string     `json:"pwdhash"`
@@ -97,6 +97,7 @@ func (p LogoutPacket) Bytes() []byte {
 type ExchangeCertPacket struct {
 	Csrdata   string `json:"csrdata"`
 	Timestamp int64  `json:"timestamp"`
+	MachineInfo SystemInfo `json:"system_info"`
 }
 
 func (p ExchangeCertPacket) Valid() bool {

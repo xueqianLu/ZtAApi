@@ -103,10 +103,10 @@ func NewUserCommand(username string, privk *sm2.PrivateKey, manager_cert *sm2.Ce
 	return cmd
 }
 
-func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sysinfo SystemInfo,
+func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 	privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
-	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, MachineInfo: sysinfo, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
+	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
 	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
 	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
@@ -120,9 +120,9 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string, sys
 	return cmd, nil
 }
 
-func NewAdminLoginCmd(name string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
-	lp := AdminLoginReqPacket{PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
+	lp := AdminLoginReqPacket{DeviceID:deviceId, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}
@@ -206,16 +206,16 @@ func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
 	return cmd
 }
 
-func NewNormalExchangeCertCmd(name string, passwd string, csr string) (*HmacCmd, error) {
-	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix()}
+func NewNormalExchangeCertCmd(name string, passwd string, csr string,sysinfo SystemInfo) (*HmacCmd, error) {
+	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo}
 	p := &Packet{NormalUserExchangeCert, c.Bytes()}
 	cmd := NewHmacCommand(name, passwd, p)
 
 	return cmd, nil
 }
 
-func NewAdminExchangeCertCmd(name string, passwd string, csr string) (*HmacCmd, error) {
-	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix()}
+func NewAdminExchangeCertCmd(name string, passwd string, csr string,sysinfo SystemInfo) (*HmacCmd, error) {
+	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo:sysinfo}
 	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
 	cmd := NewHmacCommand(name, passwd, p)
 
