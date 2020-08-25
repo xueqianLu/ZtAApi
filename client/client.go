@@ -56,6 +56,8 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 	if local.User == nil {
 		if userConfigPath,err = conf.GetUserConfigPath(local); err == nil {
 			local.User,err = conf.GetUserLocalConfig(userConfigPath, local.UserName)
+		} else {
+			log.Println("checkAndGetUserConfig", "get user config path failed", err)
 		}
 	} else if local.UserName != local.User.UserName {
 		conf.ClientUserConfigSave(local.User)
@@ -128,12 +130,13 @@ func prepareCsrAndPrivk(conf *conf.StorageConfig) ([]byte, error) {
 	conf.User.SM2PrivkFile = filepath.Join(conf.User.ConfPath, "./smprivk.pem")
 	_, err := sm2.WritePrivateKeytoPem(conf.User.SM2PrivkFile, conf.User.Sm2Priv, nil)
 	if err != nil {
-		log.Println("Write privateKey to pem failed, err", err)
+		log.Println("Write privateKey to pem failed","path=",conf.User.SM2PrivkFile,"err=", err)
+		return nil, err
 	}
 	selfcsrfile := filepath.Join(conf.User.ConfPath, "./scsr.pem")
 	csr, err := common.SM2CreateCertificateRequest(selfcsrfile, conf.UserName, conf.User.Sm2Priv)
 	if err != nil {
-		log.Println("create certificate request failed, err ", err)
+		log.Println("create certificate request failed","path = ",selfcsrfile,"err = ", err)
 		return nil, err
 	}
 	return csr, nil

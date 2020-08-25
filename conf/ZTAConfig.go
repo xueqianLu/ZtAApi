@@ -58,8 +58,16 @@ func GetUserLocalConfig(userpath string, username string) (*UserConfig,error) {
 	var c *UserConfig
 	var e error
 	if c,e = getUserLocalConfig(userpath, username); e != nil {
-		os.RemoveAll(userpath)
-		os.MkdirAll(userpath, os.ModeDir|0700)
+		err := os.RemoveAll(userpath)
+		if err != nil {
+			log.Println("remove path failed", "path=",userpath,"err=",err)
+		}
+
+		err = os.MkdirAll(userpath, os.ModeDir|0700)
+
+		if err != nil {
+			log.Println("makedir path failed", "path=",userpath,"err=",err)
+		}
 		c,e = getUserLocalConfig(userpath, username)
 	}
 	return c,e
