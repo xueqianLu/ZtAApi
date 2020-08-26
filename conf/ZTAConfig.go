@@ -127,16 +127,17 @@ func GetClientLocalConfig(rootdir string) *StorageConfig {
 	var config = &StorageConfig{}
 	var err error
 
-	root := rootdir
-	log.Println("local config root path = ", rootdir)
-	name := filepath.Join(root, ztaLocalConfigFile)
+	root := make([]byte, len(rootdir))
+	copy(root,[]byte(rootdir))
+	log.Println("local config root path = ", string(root))
+	name := filepath.Join(string(root), ztaLocalConfigFile)
 	content, err := ioutil.ReadFile(name)
 	if err == nil {
 		json.Unmarshal(content, &config)
 	}
 
 	if config.ConfigPath == "" {
-		config.ConfigPath = rootdir
+		config.ConfigPath = string(root)
 	}
 
 	if userConfigPath,err := GetUserConfigPath(config); err == nil {
