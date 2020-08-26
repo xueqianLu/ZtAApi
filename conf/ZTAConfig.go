@@ -46,6 +46,7 @@ func GetUserConfigPath(stConfig *StorageConfig) (string,error) {
 		return "",errors.New("not set username")
 	}
 	userconfig_path := filepath.Join(root,stConfig.UserName)
+	log.Println("userconfig path ", userconfig_path)
 	err := os.MkdirAll(userconfig_path, os.ModeDir|0700)
 	if err != nil {
 		return "",err
@@ -127,6 +128,7 @@ func GetClientLocalConfig(rootdir string) *StorageConfig {
 	var err error
 
 	root := rootdir
+	log.Println("local config root path = ", rootdir)
 	name := filepath.Join(root, ztaLocalConfigFile)
 	content, err := ioutil.ReadFile(name)
 	if err == nil {
