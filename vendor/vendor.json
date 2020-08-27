@@ -1,0 +1,58 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "ggikUV4Pln+R5Jrxk75UCnLgHJ4=",
+			"path": "github.com/tjfoc/gmsm/sm2",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		},
+		{
+			"checksumSHA1": "QwAuMkk7lljB9/7s8230OYpJpfQ=",
+			"path": "github.com/tjfoc/gmsm/sm3",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		},
+		{
+			"checksumSHA1": "jzAf9m4d6Jakzbc/6hgZbAfxpMI=",
+			"path": "github.com/tjfoc/gmsm/sm4",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		},
+		{
+			"checksumSHA1": "JjkVVfbdvjH+FbVgKPrv0+WtpFw=",
+			"path": "golang.org/x/crypto/curve25519",
+			"revision": ""
+		},
+		{
+			"checksumSHA1": "UAbH5s3v5AfEvbGMEQAyzSFCMU0=",
+			"origin": "github.com/tjfoc/gmsm/vendor/golang.org/x/crypto/ripemd160",
+			"path": "golang.org/x/crypto/ripemd160",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		},
+		{
+			"checksumSHA1": "qFGyJj85hWPiYSNSia9UwOvp/fA=",
+			"origin": "github.com/tjfoc/gmsm/vendor/golang.org/x/crypto/sha3",
+			"path": "golang.org/x/crypto/sha3",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		},
+		{
+			"checksumSHA1": "c2uqM0KcVJ2SFu/9Nt4w63GZ9xo=",
+			"origin": "github.com/tjfoc/gmsm/vendor/golang.org/x/sys/cpu",
+			"path": "golang.org/x/sys/cpu",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		},
+		{
+			"checksumSHA1": "tVYxUJ9V+T+4HcmGA3zTDX9KetU=",
+			"origin": "github.com/tjfoc/gmsm/vendor/golang.org/x/sys/unix",
+			"path": "golang.org/x/sys/unix",
+			"revision": "f7285988299d7a6134f9df1d592e9cbbe8c8d977",
+			"revisionTime": "2020-06-28T08:41:44Z"
+		}
+	],
+	"rootPath": "github.com/xueqianLu/ZtAApi"
+}
