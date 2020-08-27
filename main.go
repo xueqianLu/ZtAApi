@@ -202,7 +202,8 @@ func ParseCertToPubkey() {
 
 func testEec() {
 	data := "12345678901234567890"
-	cert, err := sm2.ReadCertificateFromPem("manager.pem")
+	//cert, err := sm2.ReadCertificateFromPem("manager.pem")
+	cert, err := sm2.ReadCertificateFromPem("center_pubkey_sm2.pem")
 	if err != nil {
 		log.Println("read cert failed, err ", err)
 		return
@@ -214,13 +215,7 @@ func testEec() {
 		return
 	}
 	log.Println("encdata = ", hex.EncodeToString(encdata))
-	//binWrite("encrypt.data", encdata)
 
-}
-
-func testDec() {
-	data := "12321321\n"
-	encdata, _ := hex.DecodeString("3072022100a09ffe840083e20c589662d37d84480e20aff5a637519b48377629e3d080df7602200b4dc08271a9cbce347e43361cbcf2772d7925c47d2f9e53d30f799f09088d1b0420c0b27a15ef55531a556399ac4b2c82a8f33ca2ae9979c8f0e87332b719a4354f0409bd1a5f4ceae7475b96")
 	privk, err := sm2.ReadPrivateKeyFromPem("prikey_sm2.pem", nil)
 	if err != nil {
 		log.Println("read privk failed, err ", err)
@@ -235,8 +230,23 @@ func testDec() {
 	log.Printf("sm2 privkey decrypt compare %v\n", ret)
 }
 
-func testManagerCertEncrypt() {
-
+func testDec() {
+	data := "12345678901234567890"
+	//encdata, _ := hex.DecodeString("0440c490f133d5e1cf9cd3df0f49c02e164269e4c2fb225068106f50eb529a52a2588c868bf0ce5fd31ff2e7f01fccc5d743ad3c3df2cfa27019de2d1a0cf01cf7f7623fbade75f208be9f432fbb8ff5d2343eab40c2b967f11c88d7181b463c4f94ec5e3f81cd8f88a88f19ebbe1563537899f268")
+	encdata, _ := hex.DecodeString("307d022076f7fb4d141a2c33c63ecd6b0420ef6d4195feb5e7ca35db9de8117eb5e735fc02210083a7b286d4fc2ed48786675b41c7adb28f5ec6909fb8d8d7f7b3db580ab971c304206e01eda7e75c8e82bcb6bcf2d66b14c2e59de7822ede55800c4b2b48a90f377604149143f6560256b478eba190f33862eb6459a7426f")
+	//privk, err := sm2.ReadPrivateKeyFromPem("smprivk.pem", nil)
+	privk, err := sm2.ReadPrivateKeyFromPem("prikey_sm2.pem", nil)
+	if err != nil {
+		log.Println("read privk failed, err ", err)
+		return
+	}
+	decdata, err := privk.Decrypt(encdata)
+	if err != nil {
+		log.Println("privk decrypt failed, err ", err)
+		return
+	}
+	ret := bytes.Compare(decdata, []byte(data)) == 0
+	log.Printf("sm2 privkey decrypt compare %v\n", ret)
 }
 
 func main() {
