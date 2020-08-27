@@ -201,8 +201,8 @@ func ParseCertToPubkey() {
 }
 
 func testEec() {
-	data := "12345678"
-	cert, err := sm2.ReadCertificateFromPem("center_pubkey_sm2.pem")
+	data := "12345678901234567890"
+	cert, err := sm2.ReadCertificateFromPem("manager.pem")
 	if err != nil {
 		log.Println("read cert failed, err ", err)
 		return
@@ -214,7 +214,7 @@ func testEec() {
 		return
 	}
 	log.Println("encdata = ", hex.EncodeToString(encdata))
-	binWrite("encrypt.data", encdata)
+	//binWrite("encrypt.data", encdata)
 
 }
 
@@ -235,6 +235,10 @@ func testDec() {
 	log.Printf("sm2 privkey decrypt compare %v\n", ret)
 }
 
+func testManagerCertEncrypt() {
+
+}
+
 func main() {
 	//testss()
 	//testsig()
@@ -244,5 +248,6 @@ func main() {
 	//ParseCertToPubkey()
 	//w()
 	//r()
-	testDec()
+	testEec()
+	//testDec()
 }
