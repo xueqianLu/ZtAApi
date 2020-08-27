@@ -94,6 +94,16 @@ func NewUserCommand(username string, privk *sm2.PrivateKey, manager_cert *sm2.Ce
 		return nil
 	}
 
+	{
+		data := []byte("12345678901234567890")
+		encd,e := SM2CertEncrypt(manager_cert, data)
+		if e != nil {
+			log.Println("SM2CertEncrypt failed, err=", err)
+		} else {
+			log.Println("encdata = ", hex.EncodeToString(encd), "data=", string(data))
+		}
+	}
+
 	if err = cmd.GenSignature(privk); err != nil {
 		log.Println("gensignature failed,", err)
 		return nil
