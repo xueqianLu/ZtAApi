@@ -5,11 +5,13 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"errors"
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/tjfoc/gmsm/sm3"
 	"github.com/tjfoc/gmsm/sm4"
 	"io/ioutil"
+	"log"
 	"math/big"
 )
 
@@ -125,6 +127,7 @@ func SM2CreateCertificate(username string, priv *sm2.PrivateKey) ([]byte, error)
 func SM2CertEncrypt(cert *sm2.Certificate, data []byte) ([]byte, error) {
 	//证书加密
 	encpub, e := GetSM2PubkeyFromCert(cert)
+	log.Println("SM2Cert Encrypt pubkey :", hex.EncodeToString(encpub.X.Bytes()), hex.EncodeToString(encpub.Y.Bytes()))
 	if e != nil {
 		return nil, e
 	}
