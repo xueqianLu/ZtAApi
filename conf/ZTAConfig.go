@@ -23,6 +23,7 @@ type UserConfig struct {
 	AutoLogin  bool   `json:"autologin"`  // autologin
 	PrivateKey string `json:"private"`    // private key
 	PublicKey  string `json:"-"`          // public key
+	DeviceId   string `json:"-"`		  // current device id
 
 	ServerAddr string `json:"serveraddr"` // server addr
 

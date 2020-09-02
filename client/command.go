@@ -44,6 +44,7 @@ type Command interface {
 type UserCmd struct {
 	CheckVal  Hash
 	UserIndex Hash
+	DeviceIndex Hash
 	Random    Hash
 	CmdType   byte
 	EncLength [2]byte
@@ -59,7 +60,7 @@ func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
 	s := make([]byte, 1)
 	s[0] = u.CmdType
 
-	data := BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.Random[:], u.EncLength[:], u.EncPacket[:])
+	data := BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.EncLength[:], u.EncPacket[:])
 
 	signature, err := SM2PrivSign(privk, data)
 	if err != nil {
@@ -77,16 +78,17 @@ func (u *UserCmd) Type() byte {
 func (u *UserCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = u.CmdType
-	return BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.Random[:], u.EncLength[:], u.EncPacket, u.Signature[:])
+	return BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.EncLength[:], u.EncPacket, u.Signature[:])
 }
 
-func NewUserCommand(username string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate, packet *Packet) *UserCmd {
+func NewUserCommand(username string, deviceid string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate, packet *Packet) *UserCmd {
 	var err error
 	var cmdtype = packet.Type()
 	cmd := &UserCmd{CmdType: cmdtype}
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(username)), cmd.Random[:]))
+	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
 
 	cmd.EncPacket, err = SM2CertEncrypt(manager_cert, packet.Bytes())
 	if err != nil {
@@ -125,7 +127,7 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 	//log.Println("loginReqpacket:", string(lp.Bytes()))
 
 	p := &Packet{NormalUserLogin, lp.Bytes()}
-	cmd := NewUserCommand(name, privk, manager_cert, p)
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -138,25 +140,25 @@ func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.Pr
 	}
 
 	p := &Packet{AdminLoginMsg, lp.Bytes()}
-	cmd := NewUserCommand(name, privk, manager_cert, p)
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil
 }
 
-func NewChangePwdCmd(name string, passwd string, newpwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+func NewChangePwdCmd(name string, deviceId string, passwd string, newpwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	oldpwdhash := SHA256([]byte(passwd))
 	c := ChangePwdPacket{OldPwdHash: hex.EncodeToString(oldpwdhash), Passwd: newpwd, Timestamp: time.Now().Unix()}
 	p := &Packet{NormalUserChangPwd, c.Bytes()}
-	cmd := NewUserCommand(name, privk, manager_cert, p)
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil
 }
 
-func NewLogoutCmd(name string, passwd string, pubkey string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+func NewLogoutCmd(name string, deviceId string, passwd string, pubkey string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	c := LogoutPacket{PwdHash: hex.EncodeToString(pwdhash), Pubkey: pubkey, Timestamp: time.Now().Unix()}
 	p := &Packet{NormalUserLogout, c.Bytes()}
-	cmd := NewUserCommand(name, privk, manager_cert, p)
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -164,6 +166,7 @@ func NewLogoutCmd(name string, passwd string, pubkey string, privk *sm2.PrivateK
 type HmacCmd struct {
 	CheckVal  Hash
 	UserIndex Hash
+	DeviceIndex Hash
 	Random    Hash
 	CmdType   byte
 	EncPacket []byte
@@ -175,7 +178,7 @@ func (l *HmacCmd) GenHMAC(key []byte) {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
 
-	data := BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.Random[:], l.EncPacket[:])
+	data := BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.EncPacket[:])
 	//log.Println("GenHMAC:checkval=", hex.EncodeToString(l.CheckVal[:]))
 	//log.Println("GenHMAC:userindex=", hex.EncodeToString(l.UserIndex[:]))
 	//log.Println("GenHMAC:random=", hex.EncodeToString(l.Random[:]))
@@ -191,16 +194,17 @@ func (l *HmacCmd) Type() byte {
 func (l *HmacCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
-	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.Random[:], l.EncPacket, l.HMAC[:])
+	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.EncPacket, l.HMAC[:])
 }
 
-func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
+func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
 	var cmdtype = packet.Type()
 	cmd := &HmacCmd{CmdType: cmdtype}
 
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
+	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
 
 	pwdSha := SM3Hash([]byte(pwd))
 	//log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha[:]))
@@ -219,7 +223,7 @@ func NewHmacCommand(name, pwd string, packet *Packet) *HmacCmd {
 func NewNormalExchangeCertCmd(name string, passwd string, csr string,sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo}
 	p := &Packet{NormalUserExchangeCert, c.Bytes()}
-	cmd := NewHmacCommand(name, passwd, p)
+	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
 
 	return cmd, nil
 }
@@ -227,7 +231,7 @@ func NewNormalExchangeCertCmd(name string, passwd string, csr string,sysinfo Sys
 func NewAdminExchangeCertCmd(name string, passwd string, csr string,sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo:sysinfo}
 	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
-	cmd := NewHmacCommand(name, passwd, p)
+	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
 
 	return cmd, nil
 }

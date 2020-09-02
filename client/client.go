@@ -262,6 +262,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, e
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return nil, err
 	}
+	local.User.DeviceId = sysinfo.DeviceId
 
 	return &info.LoginResData, nil
 }
@@ -282,7 +283,7 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 		}
 
 		log.Println("client logout, force =", force)
-		cmd, _ := NewLogoutCmd(local.UserName, local.Password, local.User.PublicKey, local.User.Sm2Priv, local.User.ManagerCert)
+		cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.User.PublicKey, local.User.Sm2Priv, local.User.ManagerCert)
 		res, err = requestToServer(local, cmd)
 		log.Println("send to server logout cmd:", hex.EncodeToString(cmd.Data()))
 		if err != nil {
@@ -316,7 +317,7 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 		return err
 	}
 
-	cmd, _ := NewChangePwdCmd(local.UserName, local.Password, newpwd, local.User.Sm2Priv, local.User.ManagerCert)
+	cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, local.User.ManagerCert)
 	res, err := requestToServer(local, cmd)
 	if err != nil {
 		return err
