@@ -79,7 +79,9 @@ func getUserLocalConfig(userpath string, username string) (*UserConfig,error) {
 	var config = &UserConfig{}
 	p := userpath
 	name := filepath.Join(p, ztaUserConfigFile)
-	content, err := ioutil.ReadFile(name)
+	encdata, err := ioutil.ReadFile(name)
+
+	content := common.SM4DecryptCBC(common.LocalEncKey, encdata)
 	if err == nil {
 		json.Unmarshal(content, &config)
 	}
@@ -112,7 +114,7 @@ func getUserLocalConfig(userpath string, username string) (*UserConfig,error) {
 	}
 
 	if config.SM2PrivkFile != "" && config.ManagerCertFile != "" {
-		if config.Sm2Priv, err = sm2.ReadPrivateKeyFromPem(config.SM2PrivkFile, nil); err != nil {
+		if config.Sm2Priv, err = common.ReadEncSm2PrivateKey(config.SM2PrivkFile, nil); err != nil {
 			log.Println("ReadPrivkey from Pem failed, err ", err)
 		}
 		csrdata, _ := ioutil.ReadFile(config.ManagerCertFile)
@@ -156,7 +158,8 @@ func ClientUserConfigSave(userconf *UserConfig) error {
 	p := userconf.ConfPath
 	filename := filepath.Join(p, ztaUserConfigFile)
 	bytes, _ := json.Marshal(userconf)
-	err := ioutil.WriteFile(filename+".tmp", bytes, 0600)
+	encdata := common.SM4EncryptCBC(common.LocalEncKey, bytes)
+	err := ioutil.WriteFile(filename+".tmp", encdata, 0600)
 	if err != nil {
 		return err
 	}

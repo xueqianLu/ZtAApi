@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
 	"github.com/xueqianLu/ZtAApi/conf"
 	"io"
@@ -128,7 +127,7 @@ func prepareCsrAndPrivk(conf *conf.StorageConfig) ([]byte, error) {
 	// 生成私钥
 	conf.User.Sm2Priv, _ = common.SM2GenerateKey()
 	conf.User.SM2PrivkFile = filepath.Join(conf.User.ConfPath, "./smprivk.pem")
-	_, err := sm2.WritePrivateKeytoPem(conf.User.SM2PrivkFile, conf.User.Sm2Priv, nil)
+	_, err := common.WriteEncSm2Privatekey(conf.User.SM2PrivkFile, conf.User.Sm2Priv, nil)
 	if err != nil {
 		log.Println("Write privateKey to pem failed","path=",conf.User.SM2PrivkFile,"err=", err)
 		return nil, err
