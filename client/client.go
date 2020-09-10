@@ -273,6 +273,9 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 			return err
 		}
 	}
+	if local.User != nil {
+		conf.ClientUserConfigSave(local.User)
+	}
 	local.User = nil
 
 	return nil

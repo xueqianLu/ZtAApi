@@ -88,8 +88,14 @@ func (c *UserConfig) GetManagerCert(server string) *sm2.Certificate {
 	return nil
 }
 
+func ManagerCertName(path, server string) string {
+	fname := "server-" + server + managerCertSuffix
+	return filepath.Join(path, fname)
+}
+
 func (c *UserConfig) SaveManagerCert(certData []byte) error {
-	savefileName := filepath.Join(c.ConfPath,c.ServerAddr, managerCertSuffix)
+
+	savefileName := ManagerCertName(c.ConfPath, c.ServerAddr)
 	err := ioutil.WriteFile(savefileName, certData, 0755)
 	if err != nil {
 		log.Println("Write certificate to file failed, err ", err, "filename", savefileName)
@@ -227,7 +233,7 @@ func loadUserLocalConfig(userpath string, username string, serveraddr string) (*
 
 		// get all server manager cert
 		for _, server := range config.ServerList {
-			managername := filepath.Join(userpath, server, managerCertSuffix)
+			managername := ManagerCertName(userpath, serveraddr)
 			if certdata, err := ioutil.ReadFile(managername); err != nil {
 				log.Println("read manager cert ", managername, " failed, err ", err.Error())
 				continue
@@ -254,6 +260,7 @@ func ClientUserConfigSave(userconf *UserConfig) error {
 	}
 
 	filename := filepath.Join(userconf.ConfPath, ztaUserConfigFile)
+	log.Println("save user config to ", filename)
 	bytes, _ := json.Marshal(userconf)
 	encdata := common.SM4EncryptCBC(common.LocalEncKey, bytes)
 	err := ioutil.WriteFile(filename+".tmp", encdata, 0600)
