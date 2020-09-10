@@ -7,10 +7,8 @@ import (
 	"github.com/xueqianLu/ZtAApi/common"
 	"github.com/xueqianLu/ZtAApi/conf"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
-	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -52,16 +50,15 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 		}
 	}()
 
-	if local.User == nil {
-		if userConfigPath,err = conf.GetUserConfigPath(local); err == nil {
-			local.User,err = conf.GetUserLocalConfig(userConfigPath, local.UserName)
-		} else {
-			log.Println("checkAndGetUserConfig", "get user config path failed", err)
+	if local.User != nil && local.UserName == local.User.UserName {
+		local.User.ServerAddr = local.ServerAddr
+		return nil
+	} else {
+		if local.User != nil {
+			conf.ClientUserConfigSave(local.User)
 		}
-	} else if local.UserName != local.User.UserName {
-		conf.ClientUserConfigSave(local.User)
 		userConfigPath,err = conf.GetUserConfigPath(local)
-		local.User, err = conf.GetUserLocalConfig(userConfigPath, local.UserName)
+		local.User, err = conf.GetUserLocalConfig(userConfigPath, local.UserName, local.ServerAddr)
 	}
 
 	return err
@@ -117,28 +114,11 @@ func GetZtALoginInfo(lg *LoginResData) string {
 }
 
 func needExchangeCert(conf *conf.StorageConfig) bool {
-	if conf.User.ManagerCert != nil && conf.User.Sm2Priv != nil {
+	managerCert := conf.User.GetManagerCert(conf.User.ServerAddr)
+	if conf.User.Sm2Priv != nil && managerCert != nil {
 		return false
 	}
 	return true
-}
-
-func prepareCsrAndPrivk(conf *conf.StorageConfig) ([]byte, error) {
-	// 生成私钥
-	conf.User.Sm2Priv, _ = common.SM2GenerateKey()
-	conf.User.SM2PrivkFile = filepath.Join(conf.User.ConfPath, "./smprivk.pem")
-	_, err := common.WriteEncSm2Privatekey(conf.User.SM2PrivkFile, conf.User.Sm2Priv, nil)
-	if err != nil {
-		log.Println("Write privateKey to pem failed","path=",conf.User.SM2PrivkFile,"err=", err)
-		return nil, err
-	}
-	selfcsrfile := filepath.Join(conf.User.ConfPath, "./scsr.pem")
-	csr, err := common.SM2CreateCertificateRequest(selfcsrfile, conf.UserName, conf.User.Sm2Priv)
-	if err != nil {
-		log.Println("create certificate request failed","path = ",selfcsrfile,"err = ", err)
-		return nil, err
-	}
-	return csr, nil
 }
 
 func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) error {
@@ -146,10 +126,11 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	var res, decPac []byte
 	var csr []byte
 
-	csr, err = prepareCsrAndPrivk(local)
-	if err != nil {
-		return err
+	csr = local.User.GetScsrData()
+	if csr == nil {
+		return errors.New("have no scsr data")
 	}
+
 	cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
 	if e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
@@ -176,27 +157,13 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 		return err
 	}
 
-	// Todo: 存储证书加密
-
 	// parse res
 	var info = &ExchangeCertResponse{}
 	if err = json.Unmarshal(decPac, &info); err != nil {
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return err
 	}
-	manager_certdata := []byte(info.ManagerCert)
-	local.User.ManagerCert, err = common.SM2ReadCertificateFromMem(manager_certdata)
-	if err != nil {
-		log.Println("Parse to certificate failed, err ", err)
-		return err
-	}
-	local.User.ManagerCertFile = filepath.Join(local.User.ConfPath, "manager.pem")
-	err = ioutil.WriteFile(local.User.ManagerCertFile, manager_certdata, 0755)
-	if err != nil {
-		log.Println("Write certificate to file failed, err ", err)
-	}
-
-	return nil
+	return local.User.SaveManagerCert([]byte(info.ManagerCert))
 }
 
 func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, error) {
@@ -227,8 +194,9 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, e
 		}
 		log.Println("exchange cert success, goto login")
 	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
 
-	cmd, e := NewLoginCmd(local.UserName, local.Password, local.User.PublicKey, sysinfo.DeviceId, local.User.Sm2Priv, local.User.ManagerCert)
+	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId, local.User.Sm2Priv, managerCert)
 	if cmd == nil {
 		log.Println("new login cmd is null")
 	}
@@ -241,7 +209,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, e
 		return nil, err
 	}
 	// den
-	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, local.User.ManagerCert)
+	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return nil, err
 	}
@@ -282,14 +250,15 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 		}
 
 		log.Println("client logout, force =", force)
-		cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.User.PublicKey, local.User.Sm2Priv, local.User.ManagerCert)
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.PublicKey, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
 		log.Println("send to server logout cmd:", hex.EncodeToString(cmd.Data()))
 		if err != nil {
 			return err
 		}
 		// den
-		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, local.User.ManagerCert)
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 		if err != nil {
 			return err
 		}
@@ -315,14 +284,14 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	if err != nil {
 		return err
 	}
-
-	cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, local.User.ManagerCert)
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, managerCert)
 	res, err := requestToServer(local, cmd)
 	if err != nil {
 		return err
 	}
 	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, local.User.ManagerCert)
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return err
 	}
@@ -344,10 +313,11 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 	var res, decPac []byte
 	var csr []byte
 
-	csr, err = prepareCsrAndPrivk(local)
-	if err != nil {
-		return err
+	csr = local.User.GetScsrData()
+	if csr == nil {
+		return errors.New("have no scsr data")
 	}
+
 	cmd, e := NewAdminExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
 	if e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
@@ -379,19 +349,7 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return err
 	}
-	manager_certdata := []byte(info.ManagerCert)
-	local.User.ManagerCert, err = common.SM2ReadCertificateFromMem(manager_certdata)
-	if err != nil {
-		log.Println("Parse to certificate failed, err ", err)
-		return err
-	}
-	local.User.ManagerCertFile = filepath.Join(local.User.ConfPath, "manager.pem")
-	err = ioutil.WriteFile(local.User.ManagerCertFile, manager_certdata, 0755)
-	if err != nil {
-		log.Println("Write certificate to file failed, err ", err)
-	}
-
-	return nil
+	return local.User.SaveManagerCert([]byte(info.ManagerCert))
 }
 
 func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResData, error) {
@@ -422,14 +380,14 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResDat
 		}
 		log.Println("exchange cert success, goto login")
 	}
-
-	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId, local.User.Sm2Priv, local.User.ManagerCert)
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId, local.User.Sm2Priv, managerCert)
 	res, err = requestToServer(local, cmd)
 	if err != nil {
 		return nil, err
 	}
 	// den
-	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, local.User.ManagerCert)
+	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return nil, err
 	}
