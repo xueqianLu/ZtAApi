@@ -16,31 +16,30 @@ const (
 	ztaLocalConfigFile = "zta.json"
 	ztaUserConfigFile  = "user.json"
 	managerCertSuffix  = "manager.cert"
-	sm2PrivkFile	   = "privk.pem"
-	scsrFileName	   = "scsr.pem"
+	sm2PrivkFile       = "privk.pem"
+	scsrFileName       = "scsr.pem"
 )
 
 type managerCertInfo struct {
-	serveraddr 	string
-	cert 		*sm2.Certificate
+	serveraddr string
+	cert       *sm2.Certificate
 }
 
 type UserConfig struct {
-	UserName   string `json:"username"`	  // username
-	ServerAddr string `json:"-"` // server addr
-	AutoLogin  bool   `json:"autologin"`  // autologin
+	UserName   string `json:"username"`  // username
+	ServerAddr string `json:"-"`         // server addr
+	AutoLogin  bool   `json:"autologin"` // autologin
 	ConfPath   string `json:"-"`
-	DeviceId   string `json:"-"`		  // current device id
+	DeviceId   string `json:"-"` // current device id
 
-	SM2PrivkFile    string           	`json:"-"`  // sm2 privk file path.
-	Sm2Priv         *sm2.PrivateKey  	`json:"-"`			// sm2 privk in mem.
-	ScsrFile		string				`json:"-"`	// sm2 scsr file path
-	ScsrData		[]byte				`json:"-"`
+	SM2PrivkFile string          `json:"-"` // sm2 privk file path.
+	Sm2Priv      *sm2.PrivateKey `json:"-"` // sm2 privk in mem.
+	ScsrFile     string          `json:"-"` // sm2 scsr file path
+	ScsrData     []byte          `json:"-"`
 
-	ServerList 		[]string			`json:"serverlist"`	  // save all manager cert server addr.
-	ManagerCerts	[]*managerCertInfo 	`json:"-"`					  // save all manager cert info.
+	ServerList   []string           `json:"serverlist"` // save all manager cert server addr.
+	ManagerCerts []*managerCertInfo `json:"-"`          // save all manager cert info.
 }
-
 
 func (c *UserConfig) createPrivk() error {
 	if c.Sm2Priv == nil {
@@ -50,7 +49,7 @@ func (c *UserConfig) createPrivk() error {
 		fullpath := filepath.Join(c.ConfPath, c.SM2PrivkFile)
 		_, err := common.WriteEncSm2Privatekey(fullpath, c.Sm2Priv, nil)
 		if err != nil {
-			log.Println("Write privateKey to pem failed","path=",fullpath,"err=", err)
+			log.Println("Write privateKey to pem failed", "path=", fullpath, "err=", err)
 			return err
 		}
 	}
@@ -63,7 +62,7 @@ func (c *UserConfig) createScsr() error {
 		fullpath := filepath.Join(c.ConfPath, c.ScsrFile)
 		csr, err := common.SM2CreateCertificateRequest(fullpath, c.UserName, c.Sm2Priv)
 		if err != nil {
-			log.Println("create certificate request failed","path = ",fullpath,"err = ", err)
+			log.Println("create certificate request failed", "path = ", fullpath, "err = ", err)
 			return err
 		}
 		c.ScsrData = csr
@@ -133,59 +132,59 @@ func (c *UserConfig) addManagerCert(server string, cert *sm2.Certificate) {
 	}
 	if !have_cert {
 		info := &managerCertInfo{
-			serveraddr:server,
-			cert:cert,
+			serveraddr: server,
+			cert:       cert,
 		}
 		c.ManagerCerts = append(c.ManagerCerts, info)
 	}
 }
 
 type StorageConfig struct {
-	RootPath 		string `json:"configpath"`
-	UserName 		string `json:"username"`
-	Password 		string `json:"-"` // dec password
-	ServerAddr 		string `json:"serveraddr"` // server addr
-	User     		*UserConfig `json:"-"`
+	RootPath   string      `json:"configpath"`
+	UserName   string      `json:"username"`
+	Password   string      `json:"-"`          // dec password
+	ServerAddr string      `json:"serveraddr"` // server addr
+	User       *UserConfig `json:"-"`
 
-	PrivateKey 		string `json:"private"`    // private key
-	PublicKey  		string `json:"-"`          // public key
+	PrivateKey string `json:"private"` // private key
+	PublicKey  string `json:"-"`       // public key
 }
 
-func GetUserConfigPath(stConfig *StorageConfig) (string,error) {
+func GetUserConfigPath(stConfig *StorageConfig) (string, error) {
 	root := stConfig.RootPath
 	if stConfig.UserName == "" {
-		return "",errors.New("not set username")
+		return "", errors.New("not set username")
 	}
-	userconfig_path := filepath.Join(root,stConfig.UserName)
+	userconfig_path := filepath.Join(root, stConfig.UserName)
 	log.Println("userconfig path ", userconfig_path)
 	err := os.MkdirAll(userconfig_path, os.ModeDir|0700)
 	if err != nil {
-		return "",err
+		return "", err
 	}
 	return userconfig_path, nil
 }
 
 // get user local config, if error happen, retry. retry once.
-func GetUserLocalConfig(userpath string, username string, serveraddr string) (*UserConfig,error) {
+func GetUserLocalConfig(userpath string, username string, serveraddr string) (*UserConfig, error) {
 	var c *UserConfig
 	var e error
-	if c,e = loadUserLocalConfig(userpath, username, serveraddr); e != nil {
+	if c, e = loadUserLocalConfig(userpath, username, serveraddr); e != nil {
 		err := os.RemoveAll(userpath)
 		if err != nil {
-			log.Println("remove path failed", "path=",userpath,"err=",err)
+			log.Println("remove path failed", "path=", userpath, "err=", err)
 		}
 
 		err = os.MkdirAll(userpath, os.ModeDir|0700)
 
 		if err != nil {
-			log.Println("makedir path failed", "path=",userpath,"err=",err)
+			log.Println("makedir path failed", "path=", userpath, "err=", err)
 		}
-		c,e = loadUserLocalConfig(userpath, username, serveraddr)
+		c, e = loadUserLocalConfig(userpath, username, serveraddr)
 	}
-	return c,e
+	return c, e
 }
 
-func loadUserLocalConfig(userpath string, username string, serveraddr string) (*UserConfig,error) {
+func loadUserLocalConfig(userpath string, username string, serveraddr string) (*UserConfig, error) {
 	var config UserConfig
 
 	p := userpath
@@ -210,7 +209,7 @@ func loadUserLocalConfig(userpath string, username string, serveraddr string) (*
 	config.ServerAddr = serveraddr
 
 	config.SM2PrivkFile = filepath.Join(userpath, sm2PrivkFile)
-	config.ScsrFile 	= filepath.Join(userpath, scsrFileName)
+	config.ScsrFile = filepath.Join(userpath, scsrFileName)
 	if config.ServerList == nil {
 		config.ServerList = make([]string, 0)
 	}
@@ -239,7 +238,7 @@ func loadUserLocalConfig(userpath string, username string, serveraddr string) (*
 				continue
 			} else {
 				info := &managerCertInfo{
-					serveraddr:server,
+					serveraddr: server,
 				}
 				if info.cert, err = common.SM2ReadCertificateFromMem(certdata); err != nil {
 					log.Println("ReadCert from data failed, err ", err)
@@ -276,13 +275,31 @@ func ClientUserConfigSave(userconf *UserConfig) error {
 	return nil
 }
 
+func DeleteAllConfig(rootdir string) error {
+	dir, err := ioutil.ReadDir(rootdir)
+	if err != nil {
+		return err
+	}
+	PthSep := string(os.PathSeparator)
+	for _, d := range dir {
+		if !d.IsDir() {
+			continue
+		}
+		if d.Name() == "Configurations" {
+			continue
+		}
+		os.RemoveAll(rootdir + PthSep + d.Name())
+	}
+	return nil
+}
+
 // must not return nil
 func GetClientLocalConfig(rootdir string) *StorageConfig {
 	var config = &StorageConfig{}
 	var err error
 
 	root := make([]byte, len(rootdir))
-	copy(root,[]byte(rootdir))
+	copy(root, []byte(rootdir))
 	log.Println("local config root path = ", string(root))
 	name := filepath.Join(string(root), ztaLocalConfigFile)
 
