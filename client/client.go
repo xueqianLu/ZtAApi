@@ -57,7 +57,7 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 		if local.User != nil {
 			conf.ClientUserConfigSave(local.User)
 		}
-		userConfigPath,err = conf.GetUserConfigPath(local)
+		userConfigPath, err = conf.GetUserConfigPath(local)
 		local.User, err = conf.GetUserLocalConfig(userConfigPath, local.UserName, local.ServerAddr)
 	}
 
@@ -311,6 +311,78 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	return nil
 }
 
+func ClientReqServerList(local *conf.StorageConfig, offset int) (*ServerListResData, error) {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewReqServerListCmd(local.UserName, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
+	res, err := requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	if head.Status != 1 {
+		err = errors.New(head.Msg)
+		return nil, err
+	}
+	// parse res
+	var slist = &ServerListResponse{}
+	if err = json.Unmarshal(decPac, &slist); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &slist.ServerListResData, nil
+}
+
+func ClientReqHostsList(local *conf.StorageConfig, offset int) (*HostsListResData, error) {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewReqHostListCmd(local.UserName, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
+	res, err := requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	if head.Status != 1 {
+		err = errors.New(head.Msg)
+		return nil, err
+	}
+	// parse res
+	var hlist = &HostsListResponse{}
+	if err = json.Unmarshal(decPac, &hlist); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &hlist.HostsListResData, nil
+}
+
 func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) error {
 	var err error
 	var res, decPac []byte
@@ -373,10 +445,9 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResDat
 	log.Println("Admin login sysinfostr", sysinfostr)
 	log.Println("Admin login sysinfo", sysinfo)
 
-
 	if needExchangeCert(local) {
 		log.Println("need exchange cert.")
-		err = adminExchangeCert(local,*sysinfo)
+		err = adminExchangeCert(local, *sysinfo)
 		if err != nil {
 			log.Println("exchange cert failed, err ", err)
 			return nil, err

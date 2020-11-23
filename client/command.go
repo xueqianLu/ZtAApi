@@ -11,11 +11,13 @@ import (
 )
 
 const (
-	ClientID                    = "AZEROTRUSTNETWORKACCESSTOANYONEL"
-	NormalUserExchangeCert byte = 1 //普通用户交换证书
-	NormalUserLogin        byte = 2 //普通用户登录
-	NormalUserChangPwd     byte = 3 //普通用户修改密码
-	NormalUserLogout       byte = 4 //普通用户退出登录
+	ClientID                     = "AZEROTRUSTNETWORKACCESSTOANYONEL"
+	NormalUserExchangeCert  byte = 1 //普通用户交换证书
+	NormalUserLogin         byte = 2 //普通用户登录
+	NormalUserChangPwd      byte = 3 //普通用户修改密码
+	NormalUserLogout        byte = 4 //普通用户退出登录
+	NormalUserReqServerList byte = 5 //普通用户获取服务器列表
+	NormalUserReqHostList   byte = 6 //普通用户获取服务器列表
 
 	AdminExchangeCertMsg byte = 10 //管理员交换证书
 	AdminLoginMsg        byte = 11 //管理员登录
@@ -42,14 +44,14 @@ type Command interface {
 }
 
 type UserCmd struct {
-	CheckVal  Hash
-	UserIndex Hash
+	CheckVal    Hash
+	UserIndex   Hash
 	DeviceIndex Hash
-	Random    Hash
-	CmdType   byte
-	EncLength [2]byte
-	EncPacket []byte
-	Signature []byte
+	Random      Hash
+	CmdType     byte
+	EncLength   [2]byte
+	EncPacket   []byte
+	Signature   []byte
 }
 
 func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
@@ -98,7 +100,7 @@ func NewUserCommand(username string, deviceid string, privk *sm2.PrivateKey, man
 
 	{
 		data := []byte("12345678901234567890")
-		encd,e := SM2CertEncrypt(manager_cert, data)
+		encd, e := SM2CertEncrypt(manager_cert, data)
 		if e != nil {
 			log.Println("SM2CertEncrypt failed, err=", err)
 		} else {
@@ -134,7 +136,7 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 
 func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
-	lp := AdminLoginReqPacket{DeviceID:deviceId, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
+	lp := AdminLoginReqPacket{DeviceID: deviceId, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix()}
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}
@@ -163,14 +165,30 @@ func NewLogoutCmd(name string, deviceId string, passwd string, pubkey string, pr
 	return cmd, nil
 }
 
+func NewReqServerListCmd(name string, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := ServerListReqPacket{StartOffset: startOffset, Timestamp: time.Now().Unix()}
+	p := &Packet{NormalUserReqServerList, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewReqHostListCmd(name string, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := HostsListReqPacket{StartOffset: startOffset, Timestamp: time.Now().Unix()}
+	p := &Packet{NormalUserReqHostList, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
 type HmacCmd struct {
-	CheckVal  Hash
-	UserIndex Hash
+	CheckVal    Hash
+	UserIndex   Hash
 	DeviceIndex Hash
-	Random    Hash
-	CmdType   byte
-	EncPacket []byte
-	HMAC      Hash
+	Random      Hash
+	CmdType     byte
+	EncPacket   []byte
+	HMAC        Hash
 }
 
 func (l *HmacCmd) GenHMAC(key []byte) {
@@ -220,7 +238,7 @@ func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
 	return cmd
 }
 
-func NewNormalExchangeCertCmd(name string, passwd string, csr string,sysinfo SystemInfo) (*HmacCmd, error) {
+func NewNormalExchangeCertCmd(name string, passwd string, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo}
 	p := &Packet{NormalUserExchangeCert, c.Bytes()}
 	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
@@ -228,8 +246,8 @@ func NewNormalExchangeCertCmd(name string, passwd string, csr string,sysinfo Sys
 	return cmd, nil
 }
 
-func NewAdminExchangeCertCmd(name string, passwd string, csr string,sysinfo SystemInfo) (*HmacCmd, error) {
-	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo:sysinfo}
+func NewAdminExchangeCertCmd(name string, passwd string, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
+	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo}
 	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
 	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
 
