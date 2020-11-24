@@ -24,6 +24,15 @@ func NewDomainListWithItems(domains ...interface{}) *DomainList {
 	return &DomainList{s}
 }
 
+func (d *DomainList) String() string {
+	v := d.Flatten()
+	var ret = ""
+	for _, domain := range v {
+		ret = fmt.Sprintf("\t%s\t%s", domain.(string), ret)
+	}
+	return ret
+}
+
 func ParseHostsFile(path string) map[string]*DomainList {
 	fi, err := os.Open(path)
 	if err != nil {
@@ -89,4 +98,20 @@ func MergeHostMap(syshost, nhost map[string]*DomainList) map[string]*DomainList 
 	}
 
 	return merged
+}
+
+func WriteToHosts(hostinfo map[string]*DomainList, path string) error {
+	fi, err := os.Open(path)
+	if err != nil {
+		log.Println("open error ", err)
+		return nil
+	}
+	defer fi.Close()
+
+	w := bufio.NewWriter(fi)
+	for ip, dlist := range hostinfo {
+		lineStr := fmt.Sprintf("%s%s", ip, dlist.String())
+		fmt.Fprintln(w, lineStr)
+	}
+	return w.Flush()
 }
