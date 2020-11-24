@@ -3,6 +3,8 @@ package client
 import (
 	"encoding/json"
 	. "github.com/xueqianLu/ZtAApi/common"
+	"log"
+	"strings"
 )
 
 type InvalidPacket interface {
@@ -182,7 +184,7 @@ type LoginResData struct {
 	Key               string       `json:"key"`
 	LifeTime          int          `json:"lifetime"` // unit minutes
 	DNSServer         []string     `json:"dns_server"`
-	HostFlag          int          `json:"host_flag"` // 0: no host; 1: have hosts
+	HostNum           int          `json:"hosts"` // hosts number
 }
 
 func (p LoginResponse) String() string {
@@ -251,4 +253,25 @@ type HostsListResData struct {
 func (p HostsListResData) String() string {
 	b, _ := json.Marshal(p)
 	return string(b)
+}
+
+func ParseHostsInfo(hosts []HostInfo) map[string]*DomainList {
+	hostinfo := make(map[string]*DomainList)
+	for _, host := range hosts {
+		section := strings.Split(host.Domain, " ")
+		ip := host.IP
+		domainlist := hostinfo[ip]
+		for _, s := range section {
+			//log.Println(strings.TrimSpace(ip),"--->", strings.TrimSpace(s))
+			log.Println(ip, "--->", s)
+			domain := strings.TrimSpace(s)
+			if domainlist == nil {
+				domainlist = NewDomainList(domain)
+				hostinfo[ip] = domainlist
+			} else {
+				domainlist.Add(domain)
+			}
+		}
+	}
+	return hostinfo
 }
