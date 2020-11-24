@@ -17,7 +17,8 @@ const (
 	NormalUserChangPwd      byte = 3 //普通用户修改密码
 	NormalUserLogout        byte = 4 //普通用户退出登录
 	NormalUserReqServerList byte = 5 //普通用户获取服务器列表
-	NormalUserReqHostList   byte = 6 //普通用户获取服务器列表
+	NormalUserReqHostList   byte = 6 //普通用户获取hosts列表
+	NormalUserReqHome       byte = 7 //普通用户获取home url
 
 	AdminExchangeCertMsg byte = 10 //管理员交换证书
 	AdminLoginMsg        byte = 11 //管理员登录
@@ -176,6 +177,14 @@ func NewReqServerListCmd(name string, deviceId string, startOffset int, privk *s
 func NewReqHostListCmd(name string, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	c := HostsListReqPacket{StartOffset: startOffset, Timestamp: time.Now().Unix()}
 	p := &Packet{NormalUserReqHostList, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewReqUserHomeCmd(name string, deviceId string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := UserHomeReqPacket{Timestamp: time.Now().Unix()}
+	p := &Packet{NormalUserReqHome, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil

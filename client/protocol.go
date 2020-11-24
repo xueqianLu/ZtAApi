@@ -153,6 +153,24 @@ func (c HostsListReqPacket) Bytes() []byte {
 	return bs
 }
 
+type UserHomeReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp int64 `json:"timestamp"`
+}
+
+func (p UserHomeReqPacket) Valid() bool {
+	return true
+}
+
+func (p UserHomeReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
 //server response header
 type ServerResponse struct {
 	Type   int    `json:"cmd"`
@@ -274,4 +292,17 @@ func ParseHostsInfo(hosts []HostInfo) map[string]*DomainList {
 		}
 	}
 	return hostinfo
+}
+
+type UserHomeResponse struct {
+	UserHomeResData `json:"data"`
+}
+
+type UserHomeResData struct {
+	Url string `json:"url"`
+}
+
+func (p UserHomeResData) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
 }

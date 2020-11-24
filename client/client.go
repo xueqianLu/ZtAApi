@@ -383,6 +383,42 @@ func ClientReqHostsList(local *conf.StorageConfig, offset int) (*HostsListResDat
 	return &hlist.HostsListResData, nil
 }
 
+func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewReqUserHomeCmd(local.UserName, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+	res, err := requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	if head.Status != 1 {
+		err = errors.New(head.Msg)
+		return nil, err
+	}
+	// parse res
+	var response = &UserHomeResponse{}
+	if err = json.Unmarshal(decPac, &response); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &response.UserHomeResData, nil
+}
+
 func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) error {
 	var err error
 	var res, decPac []byte
