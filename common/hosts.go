@@ -55,21 +55,26 @@ func ParseHostsFile(path string) map[string]*DomainList {
 		}
 
 		section := strings.Split(line, "\t")
-		fmt.Println("get splits len ", len(section))
+		log.Println("get splits len ", len(section))
 
 		if len(section) > 1 {
 			ip := strings.TrimSpace(section[0])
 			domainlist := hostinfo[ip]
 			for _, s := range section[1:] {
 				//log.Println(strings.TrimSpace(ip),"--->", strings.TrimSpace(s))
-				log.Println(ip, "--->", s)
 				domain := strings.TrimSpace(s)
+				if len(domain) < 1 {
+					continue
+				}
 				if domainlist == nil {
 					domainlist = NewDomainList(domain)
 					hostinfo[ip] = domainlist
 				} else {
 					domainlist.Add(domain)
 				}
+			}
+			if domainlist == nil || domainlist.Len() == 0 {
+				delete(hostinfo, ip)
 			}
 		}
 	}
@@ -78,22 +83,50 @@ func ParseHostsFile(path string) map[string]*DomainList {
 
 func MergeHostMap(syshost, nhost map[string]*DomainList) map[string]*DomainList {
 	var merged = make(map[string]*DomainList)
-	for ip, domainlist := range syshost {
-		ndomains := domainlist.Flatten()
-		if dlist := merged[ip]; dlist != nil {
-			dlist.Add(ndomains)
-		} else {
-			dlist = NewDomainListWithItems(ndomains)
-			merged[ip] = dlist
+	if syshost != nil {
+		for ip, domainlist := range syshost {
+			ndomains := domainlist.Flatten()
+			if ndomains == nil || len(ndomains) == 0 {
+				continue
+			}
+			//log.Println("ip = ", ip, "domainlist = ", domainlist.String())
+			if dlist, ok := merged[ip]; ok {
+				for _, domain := range ndomains {
+					dlist.Add(domain.(string))
+				}
+			} else {
+				for _, domain := range ndomains {
+					if dlist == nil {
+						dlist = NewDomainList(domain.(string))
+					} else {
+						dlist.Add(domain.(string))
+					}
+				}
+				merged[ip] = dlist
+			}
 		}
 	}
-	for ip, domainlist := range nhost {
-		ndomains := domainlist.Flatten()
-		if dlist := merged[ip]; dlist != nil {
-			dlist.Add(ndomains)
-		} else {
-			dlist = NewDomainListWithItems(ndomains)
-			merged[ip] = dlist
+	if nhost != nil {
+		for ip, domainlist := range nhost {
+			ndomains := domainlist.Flatten()
+			if ndomains == nil || len(ndomains) == 0 {
+				continue
+			}
+			//log.Println("ip = ", ip, "domainlist = ", domainlist.String())
+			if dlist := merged[ip]; dlist != nil {
+				for _, domain := range ndomains {
+					dlist.Add(domain.(string))
+				}
+			} else {
+				for _, domain := range ndomains {
+					if dlist == nil {
+						dlist = NewDomainList(domain.(string))
+					} else {
+						dlist.Add(domain.(string))
+					}
+				}
+				merged[ip] = dlist
+			}
 		}
 	}
 
@@ -101,9 +134,9 @@ func MergeHostMap(syshost, nhost map[string]*DomainList) map[string]*DomainList 
 }
 
 func WriteToHosts(hostinfo map[string]*DomainList, path string) error {
-	fi, err := os.Open(path)
+	fi, err := os.Create(path)
 	if err != nil {
-		log.Println("open error ", err)
+		log.Println("create error ", err)
 		return nil
 	}
 	defer fi.Close()
