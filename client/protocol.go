@@ -203,6 +203,7 @@ type LoginResData struct {
 	LifeTime          int          `json:"lifetime"` // unit minutes
 	DNSServer         []string     `json:"dns_server"`
 	HostNum           int          `json:"hosts"` // hosts number
+	HomeUrl           string       `json:"url"`
 }
 
 func (p LoginResponse) String() string {
