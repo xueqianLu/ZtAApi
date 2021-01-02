@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/xueqianLu/ZtAApi/common"
 	"github.com/xueqianLu/ZtAApi/conf"
 	"io"
@@ -166,7 +167,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	return local.User.SaveManagerCert([]byte(info.ManagerCert))
 }
 
-func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, error) {
+func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigInfo, error) {
 	var err error
 	var res, decPac []byte
 
@@ -224,14 +225,33 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*LoginResData, e
 		return nil, err
 	}
 	// parse res
-	var info = &LoginResponse{}
-	if err = json.Unmarshal(decPac, &info); err != nil {
+	var login = &LoginResponse{}
+	if err = json.Unmarshal(decPac, &login); err != nil {
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return nil, err
 	}
 	local.User.DeviceId = sysinfo.DeviceId
+	var userConfig string
+	userConfig += login.SliceInfo
+	var reqSliceOffset = login.SliceOffset + 1
+	for i := reqSliceOffset; i < login.SliceCount; i++ {
+		if configSlice, e := ClientReqSliceInfo(local, i); e != nil {
+			return nil, errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+		} else {
+			userConfig += configSlice.SliceInfo
+		}
+	}
 
-	return &info.LoginResData, nil
+	allConfigInfo := &conf.AllConfigInfo{}
+	if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
+		return nil, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
+	} else {
+		if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
+			log.Println("user login, unmarshal to allConfigInfo failed.")
+			return nil, err
+		}
+	}
+	return allConfigInfo, nil
 }
 
 func ClientLogout(local *conf.StorageConfig, force bool) error {
@@ -311,78 +331,6 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	return nil
 }
 
-func ClientReqServerList(local *conf.StorageConfig, offset int) (*ServerListResData, error) {
-
-	err := checkAndGetUserConfig(local)
-	if err != nil {
-		return nil, err
-	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewReqServerListCmd(local.UserName, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
-	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
-	if err != nil {
-		return nil, err
-	}
-
-	head := &ServerResponse{}
-	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
-		return nil, err
-	}
-	if head.Status != 1 {
-		err = errors.New(head.Msg)
-		return nil, err
-	}
-	// parse res
-	var slist = &ServerListResponse{}
-	if err = json.Unmarshal(decPac, &slist); err != nil {
-		log.Println("decpac unmarshal to LoginResponse failed.")
-		return nil, err
-	}
-	return &slist.ServerListResData, nil
-}
-
-func ClientReqHostsList(local *conf.StorageConfig, offset int) (*HostsListResData, error) {
-
-	err := checkAndGetUserConfig(local)
-	if err != nil {
-		return nil, err
-	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewReqHostListCmd(local.UserName, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
-	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
-	if err != nil {
-		return nil, err
-	}
-
-	head := &ServerResponse{}
-	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
-		return nil, err
-	}
-	if head.Status != 1 {
-		err = errors.New(head.Msg)
-		return nil, err
-	}
-	// parse res
-	var hlist = &HostsListResponse{}
-	if err = json.Unmarshal(decPac, &hlist); err != nil {
-		log.Println("decpac unmarshal to LoginResponse failed.")
-		return nil, err
-	}
-	return &hlist.HostsListResData, nil
-}
-
 func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 
 	err := checkAndGetUserConfig(local)
@@ -417,6 +365,42 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 		return nil, err
 	}
 	return &response.UserHomeResData, nil
+}
+
+func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResData, error) {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewReqUserInfoCmd(local.UserName, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
+	res, err := requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	if head.Status != 1 {
+		err = errors.New(head.Msg)
+		return nil, err
+	}
+	// parse res
+	var slist = &UserInfoResponse{}
+	if err = json.Unmarshal(decPac, &slist); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &slist.SliceInfoResData, nil
 }
 
 func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) error {

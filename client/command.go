@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	ClientID                     = "AZEROTRUSTNETWORKACCESSTOANYONEL"
-	NormalUserExchangeCert  byte = 1 //普通用户交换证书
-	NormalUserLogin         byte = 2 //普通用户登录
-	NormalUserChangPwd      byte = 3 //普通用户修改密码
-	NormalUserLogout        byte = 4 //普通用户退出登录
-	NormalUserReqServerList byte = 5 //普通用户获取服务器列表
-	NormalUserReqHostList   byte = 6 //普通用户获取hosts列表
-	NormalUserReqHome       byte = 7 //普通用户获取home url
+	ClientID                    = "AZEROTRUSTNETWORKACCESSTOANYONEL"
+	NormalUserExchangeCert byte = 1 //普通用户交换证书
+	NormalUserLogin        byte = 2 //普通用户登录
+	NormalUserChangPwd     byte = 3 //普通用户修改密码
+	NormalUserLogout       byte = 4 //普通用户退出登录
+	NormalUserReqSliceInfo byte = 5 //普通用户获取用户配置信息
+
+	NormalUserReqHome byte = 7 //普通用户获取home url
 
 	AdminExchangeCertMsg byte = 10 //管理员交换证书
 	AdminLoginMsg        byte = 11 //管理员登录
@@ -166,17 +166,9 @@ func NewLogoutCmd(name string, deviceId string, passwd string, pubkey string, pr
 	return cmd, nil
 }
 
-func NewReqServerListCmd(name string, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
-	c := ServerListReqPacket{StartOffset: startOffset, Timestamp: time.Now().Unix()}
-	p := &Packet{NormalUserReqServerList, c.Bytes()}
-	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
-
-	return cmd, nil
-}
-
-func NewReqHostListCmd(name string, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
-	c := HostsListReqPacket{StartOffset: startOffset, Timestamp: time.Now().Unix()}
-	p := &Packet{NormalUserReqHostList, c.Bytes()}
+func NewReqUserInfoCmd(name string, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix()}
+	p := &Packet{NormalUserReqSliceInfo, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil

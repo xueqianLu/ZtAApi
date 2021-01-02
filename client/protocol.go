@@ -3,7 +3,7 @@ package client
 import (
 	"encoding/json"
 	. "github.com/xueqianLu/ZtAApi/common"
-	"log"
+	"github.com/xueqianLu/ZtAApi/conf"
 	"strings"
 )
 
@@ -115,36 +115,17 @@ func (p ExchangeCertPacket) Bytes() []byte {
 	return bs
 }
 
-type ServerListReqPacket struct {
+type SliceInfoReqPacket struct {
 	//Type       int    `json:"type"`
-	StartOffset int   `json:"server_start_offset"`
+	SliceOffset int   `json:"slice_offset"`
 	Timestamp   int64 `json:"timestamp"`
 }
 
-func (c ServerListReqPacket) Valid() bool {
+func (c SliceInfoReqPacket) Valid() bool {
 	return true
 }
 
-func (c ServerListReqPacket) Bytes() []byte {
-	bs, err := json.Marshal(c)
-	if err != nil {
-		return nil
-	}
-
-	return bs
-}
-
-type HostsListReqPacket struct {
-	//Type       int    `json:"type"`
-	StartOffset int   `json:"server_start_offset"`
-	Timestamp   int64 `json:"timestamp"`
-}
-
-func (c HostsListReqPacket) Valid() bool {
-	return true
-}
-
-func (c HostsListReqPacket) Bytes() []byte {
+func (c SliceInfoReqPacket) Bytes() []byte {
 	bs, err := json.Marshal(c)
 	if err != nil {
 		return nil
@@ -182,28 +163,10 @@ type LoginResponse struct {
 	LoginResData `json:"data"`
 }
 
-type ServerInfo struct {
-	Name     string `json:"name"`
-	IP       string `json:"ip"`
-	Protocol string `json:"protocol"`
-	Port     int    `json:"port"`
-	URL      string `json:"url"`
-}
-
 type LoginResData struct {
-	UserId            string       `json:"usrID"`
-	IP                string       `json:"client_ip"`
-	GWPubkey          string       `json:"gateway_connection_pubkey"`
-	EndPoint          string       `json:"gateway_endpoint"`
-	ServerTotal       uint32       `json:"server_total"`
-	ServerStartOffset uint32       `json:"server_start_offset"`
-	ServerNumber      uint32       `json:"server_num"`
-	ServerList        []ServerInfo `json:"server"`
-	Key               string       `json:"key"`
-	LifeTime          int          `json:"lifetime"` // unit minutes
-	DNSServer         []string     `json:"dns_server"`
-	HostNum           int          `json:"hosts"` // hosts number
-	HomeUrl           string       `json:"url"`
+	SliceCount  int    `json:"slice_count"`
+	SliceOffset int    `json:"slice_offset"`
+	SliceInfo   string `json:"info"`
 }
 
 func (p LoginResponse) String() string {
@@ -224,6 +187,21 @@ func (p AdminLoginResponse) String() string {
 	return string(b)
 }
 
+type SliceInfoResData struct {
+	SliceCount  int    `json:"slice_count"`
+	SliceOffset int    `json:"slice_offset"`
+	SliceInfo   string `json:"info"`
+}
+
+type UserInfoResponse struct {
+	SliceInfoResData `json:"data"`
+}
+
+func (p UserInfoResponse) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
 type ExchangeCertResponse struct {
 	CertResData `json:"data"`
 }
@@ -238,43 +216,7 @@ func (p ExchangeCertResponse) String() string {
 	return string(b)
 }
 
-type ServerListResponse struct {
-	ServerListResData `json:"data"`
-}
-
-type ServerListResData struct {
-	ServerTotal       uint32       `json:"server_total"`
-	ServerStartOffset uint32       `json:"server_start_offset"`
-	ServerNumber      uint32       `json:"server_num"`
-	ServerList        []ServerInfo `json:"server"`
-}
-
-func (p ServerListResData) String() string {
-	b, _ := json.Marshal(p)
-	return string(b)
-}
-
-type HostInfo struct {
-	IP     string `json:"ip"`
-	Domain string `json:"domain"`
-}
-type HostsListResponse struct {
-	HostsListResData `json:"data"`
-}
-
-type HostsListResData struct {
-	HostsTotal       uint32     `json:"host_total"`
-	HostsStartOffset uint32     `json:"host_start_offset"`
-	HostsNumber      uint32     `json:"host_num"`
-	HostsList        []HostInfo `json:"hosts"`
-}
-
-func (p HostsListResData) String() string {
-	b, _ := json.Marshal(p)
-	return string(b)
-}
-
-func ParseHostsInfo(hosts []HostInfo) map[string]*DomainList {
+func ParseHostsInfo(hosts []conf.HostInfo) map[string]*DomainList {
 	hostinfo := make(map[string]*DomainList)
 	for _, host := range hosts {
 		section := strings.Split(host.Domain, " ")
@@ -282,7 +224,6 @@ func ParseHostsInfo(hosts []HostInfo) map[string]*DomainList {
 		domainlist := hostinfo[ip]
 		for _, s := range section {
 			//log.Println(strings.TrimSpace(ip),"--->", strings.TrimSpace(s))
-			log.Println(ip, "--->", s)
 			domain := strings.TrimSpace(s)
 			if domainlist == nil {
 				domainlist = NewDomainList(domain)
