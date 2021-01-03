@@ -154,7 +154,8 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	}
 	//log.Printf("decode login response status = %d\n", head.Status)
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return err
 	}
 
@@ -221,7 +222,8 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigI
 		return nil, err
 	}
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return nil, err
 	}
 	// parse res
@@ -246,6 +248,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigI
 	if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
 		return nil, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
 	} else {
+		log.Println("after decode base64:", decodedConfig)
 		if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
 			log.Println("user login, unmarshal to allConfigInfo failed.")
 			return nil, err
@@ -289,7 +292,8 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 			return err
 		}
 		if head.Status != 1 {
-			err = errors.New(head.Msg)
+			msg, _ := common.Base64Decode(head.Msg)
+			err = errors.New(string(msg))
 			return err
 		}
 	}
@@ -325,7 +329,8 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 		return err
 	}
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return err
 	}
 	return nil
@@ -355,7 +360,8 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 		return nil, err
 	}
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return nil, err
 	}
 	// parse res
@@ -391,7 +397,8 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 		return nil, err
 	}
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return nil, err
 	}
 	// parse res
@@ -435,7 +442,8 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 	}
 	//log.Printf("decode login response status = %d\n", head.Status)
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return err
 	}
 	// parse res
@@ -493,7 +501,8 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResDat
 	}
 	//log.Printf("decode login response status = %d\n", head.Status)
 	if head.Status != 1 {
-		err = errors.New(head.Msg)
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
 		return nil, err
 	}
 
