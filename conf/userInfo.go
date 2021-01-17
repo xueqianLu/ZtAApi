@@ -17,10 +17,8 @@ type HostInfo struct {
 }
 
 type GatewayInfo struct {
-	//	IP           string       `json:"client_ip"`
 	GWPubkey     string       `json:"gateway_connection_pubkey"`
 	EndPoint     string       `json:"gateway_endpoint"`
-	Key          string       `json:"key"`
 	Id           int          `json:"gateway_id"`
 	AllowServers []ServerInfo `json:"allowed_servers"`
 	DNSServers   []string     `json:"dns_server"`
@@ -29,6 +27,7 @@ type GatewayInfo struct {
 type AllConfigInfo struct {
 	UserId   string        `json:"usrID"`
 	LifeTime int           `json:"lifetime"` // unit minutes
+	Key      string        `json:"key"`
 	HomeUrl  string        `json:"url"`
 	ClientIp string        `json:"client_ip"`
 	Gateway  []GatewayInfo `json:"gateway"`
