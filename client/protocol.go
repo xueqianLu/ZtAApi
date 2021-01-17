@@ -179,7 +179,8 @@ type AdminLoginResponse struct {
 }
 
 type AdminLoginResData struct {
-	Url string `json:"url"`
+	Url         string `json:"url"`
+	AccountType string `json:"account_type"`
 }
 
 func (p AdminLoginResponse) String() string {

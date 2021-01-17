@@ -75,7 +75,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 		return nil, err
 	}
 	defer conn.Close()
-	log.Println("write to server ", hex.EncodeToString(cmd.Data()))
+	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
 	if _, err = conn.Write(cmd.Data()); err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 	go func() {
 		//log.Println("wait to read msg")
 		readLen, err = conn.Read(msg)
-		log.Println("read msg from server len", readLen, "msg", hex.EncodeToString(msg))
+		//log.Println("read msg from server len", readLen, "msg", hex.EncodeToString(msg))
 		ch <- err
 	}()
 
@@ -183,7 +183,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigI
 		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
 		return nil, err
 	}
-	log.Println("client login sysinfostr", sysinfostr)
+	//log.Println("client login sysinfostr", sysinfostr)
 	log.Println("client login sysinfo", sysinfo)
 
 	log.Println("goto check exchange cert")
