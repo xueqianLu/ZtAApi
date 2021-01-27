@@ -9,7 +9,7 @@ import (
 	"log"
 )
 
-func GetDecryptResponseWithHmac(name string, pwd string, data []byte) ([]byte, error) {
+func GetDecryptResponseWithHmac(name string, key2 []byte, data []byte) ([]byte, error) {
 	if len(data) < 96 {
 		return nil, errors.New("Invalid response")
 	}
@@ -25,19 +25,14 @@ func GetDecryptResponseWithHmac(name string, pwd string, data []byte) ([]byte, e
 	if bytes.Compare(r_userindx, userIndex) != 0 {
 		return nil, errors.New("not match userindex")
 	}
-	pwdSha := SM3Hash([]byte(pwd))
-	//log.Println("ParseLoginResponse pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha))
 
-	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])
-	//log.Println("ParseLoginResponse aeskey=", hex.EncodeToString(aeskey))
-
-	hmac_hash := HMAC_SHA256(hmac_data, smkey)
+	hmac_hash := HMAC_SHA256(hmac_data, key2)
 	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
 	//log.Println("ParseLoginResponse local hmac=", hex.EncodeToString(hmac_hash[:]))
 	if result := bytes.Compare(hmac_hash[:], r_hmac); result != 0 {
 		return nil, errors.New("hmac not match")
 	}
-	decPac := SM4DecryptCBC(smkey, r_encpac)
+	decPac := SM4DecryptCBC(key2, r_encpac)
 	//log.Println("AESDec loginRes:%s", hex.EncodeToString(decPac))
 	//log.Println("AESDec loginRes:%s", string(decPac))
 

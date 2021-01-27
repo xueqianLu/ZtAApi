@@ -12,6 +12,7 @@ import (
 
 var (
 	ZTAIV = "01234567890abcde"
+	KEYIV = "1234567812345678"
 )
 
 // AES-128-CBC-PKCS
@@ -97,4 +98,10 @@ func GenRandomHash() Hash {
 
 	random.SetBytes(val.Bytes())
 	return random
+}
+
+func DevideKey(key Hash) []byte {
+	var keytmp = BytesXor(key[0:16], key[16:])
+	var keyfin = SM4EncryptCBCWithIV(keytmp[:], keytmp[:], []byte(KEYIV))
+	return keyfin
 }

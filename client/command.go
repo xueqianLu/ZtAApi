@@ -187,6 +187,7 @@ type HmacCmd struct {
 	UserIndex   Hash
 	DeviceIndex Hash
 	Random      Hash
+	Key         Hash
 	CmdType     byte
 	EncPacket   []byte
 	HMAC        Hash
@@ -197,7 +198,7 @@ func (l *HmacCmd) GenHMAC(key []byte) {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
 
-	data := BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.EncPacket[:])
+	data := BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.Key[:], l.EncPacket[:])
 	//log.Println("GenHMAC:checkval=", hex.EncodeToString(l.CheckVal[:]))
 	//log.Println("GenHMAC:userindex=", hex.EncodeToString(l.UserIndex[:]))
 	//log.Println("GenHMAC:random=", hex.EncodeToString(l.Random[:]))
@@ -213,7 +214,7 @@ func (l *HmacCmd) Type() byte {
 func (l *HmacCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
-	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.EncPacket, l.HMAC[:])
+	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.Key[:], l.EncPacket, l.HMAC[:])
 }
 
 func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
@@ -225,15 +226,18 @@ func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
 	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
 
-	pwdSha := SM3Hash([]byte(pwd))
-	//log.Println("NewCommand, pwd=", pwd, ",pwdsha=", hex.EncodeToString(pwdSha[:]))
-	smkey := BytesXor(pwdSha[0:16], pwdSha[16:])
-	cmd.EncPacket = SM4EncryptCBC(smkey, packet.Bytes())
+	var key1 = GenRandomHash()
+	var key = BytesXor(key1[:], cmd.Random[:])
+	copy(cmd.Key[:], key)
+
+	var key2 = DevideKey(key1)
+	cmd.EncPacket = SM4EncryptCBC(key2, packet.Bytes())
 	if cmd.EncPacket == nil {
 		log.Println("SM4Encrypt return nil")
 		return nil
 	}
-	cmd.GenHMAC(smkey)
+
+	cmd.GenHMAC(key2)
 	//log.Printf("New command %v\n", cmd)
 
 	return cmd

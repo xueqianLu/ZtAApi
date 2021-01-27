@@ -17,6 +17,8 @@ type AdminLoginReqPacket struct {
 	PwdHash   string `json:"pwdhash"`
 	Timestamp int64  `json:"timestamp"`
 	DeviceID  string `json:"device_id"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
 }
 
 func (l AdminLoginReqPacket) Valid() bool {
@@ -38,6 +40,8 @@ type LoginReqPacket struct {
 	Pubkey    string `json:"pubkey"`
 	PwdHash   string `json:"pwdhash"`
 	Timestamp int64  `json:"timestamp"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -61,6 +65,7 @@ type ChangePwdPacket struct {
 	OldPwdHash string `json:"oldpwdhash"`
 	Passwd     string `json:"passwd"`
 	Timestamp  int64  `json:"timestamp"`
+	Username   string `json:"username"`
 }
 
 func (c ChangePwdPacket) Valid() bool {
@@ -81,6 +86,8 @@ type LogoutPacket struct {
 	PwdHash   string `json:"pwdhash"`
 	Pubkey    string `json:"pubkey"`
 	Timestamp int64  `json:"timestamp"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
 }
 
 func (p LogoutPacket) Valid() bool {
@@ -97,6 +104,8 @@ func (p LogoutPacket) Bytes() []byte {
 }
 
 type ExchangeCertPacket struct {
+	Username    string     `json:"username"`
+	Passwd      string     `json:"passwd"`
 	Csrdata     string     `json:"csrdata"`
 	Timestamp   int64      `json:"timestamp"`
 	MachineInfo SystemInfo `json:"system_info"`
@@ -117,8 +126,10 @@ func (p ExchangeCertPacket) Bytes() []byte {
 
 type SliceInfoReqPacket struct {
 	//Type       int    `json:"type"`
-	SliceOffset int   `json:"slice_offset"`
-	Timestamp   int64 `json:"timestamp"`
+	SliceOffset int    `json:"slice_offset"`
+	Timestamp   int64  `json:"timestamp"`
+	Username    string `json:"username"`
+	Passwd      string `json:"passwd"`
 }
 
 func (c SliceInfoReqPacket) Valid() bool {
@@ -136,7 +147,9 @@ func (c SliceInfoReqPacket) Bytes() []byte {
 
 type UserHomeReqPacket struct {
 	//Type      int    `json:"type"`
-	Timestamp int64 `json:"timestamp"`
+	Timestamp int64  `json:"timestamp"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
 }
 
 func (p UserHomeReqPacket) Valid() bool {
@@ -167,6 +180,7 @@ type LoginResData struct {
 	SliceCount  int    `json:"slice_count"`
 	SliceOffset int    `json:"slice_offset"`
 	SliceInfo   string `json:"info"`
+	VerifyCode  string `json:"verify_code"`
 }
 
 func (p LoginResponse) String() string {

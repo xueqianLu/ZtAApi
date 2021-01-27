@@ -40,8 +40,8 @@ func GetSM2PubkeyFromCert(cert *sm2.Certificate) (*sm2.PublicKey, error) {
 	}
 }
 
-func WriteEncSm2Privatekey(name string,key *sm2.PrivateKey, pwd []byte) (bool, error) {
-	data,err := sm2.WritePrivateKeytoMem(key, pwd)
+func WriteEncSm2Privatekey(name string, key *sm2.PrivateKey, pwd []byte) (bool, error) {
+	data, err := sm2.WritePrivateKeytoMem(key, pwd)
 	if err != nil {
 		return false, err
 	}
@@ -53,13 +53,13 @@ func WriteEncSm2Privatekey(name string,key *sm2.PrivateKey, pwd []byte) (bool, e
 	return true, nil
 }
 
-func ReadEncSm2PrivateKey(FileName string, pwd []byte) (*sm2.PrivateKey, error){
+func ReadEncSm2PrivateKey(FileName string, pwd []byte) (*sm2.PrivateKey, error) {
 	data, err := ioutil.ReadFile(FileName)
 	if err != nil {
 		return nil, err
 	}
 	decdata := SM4DecryptCBC(LocalEncKey, data)
-	return sm2.ReadPrivateKeyFromMem(decdata,pwd)
+	return sm2.ReadPrivateKeyFromMem(decdata, pwd)
 }
 
 func SM2GenerateKey() (*sm2.PrivateKey, error) {
@@ -210,6 +210,22 @@ func SM4EncryptCBC(key sm4.SM4Key, packet []byte) []byte {
 
 	padding := PKCS7Padding(packet, block.BlockSize())
 	blockMode := cipher.NewCBCEncrypter(block, []byte(ZTAIV))
+
+	crypted := make([]byte, len(padding))
+	blockMode.CryptBlocks(crypted, padding)
+
+	return crypted
+}
+
+func SM4EncryptCBCWithIV(key sm4.SM4Key, packet []byte, iv []byte) []byte {
+	block, e := sm4.NewCipher(key)
+	if e != nil {
+		println("SM4DecryptCBC new cipher error", e)
+		return nil
+	}
+
+	padding := PKCS7Padding(packet, block.BlockSize())
+	blockMode := cipher.NewCBCEncrypter(block, iv)
 
 	crypted := make([]byte, len(padding))
 	blockMode.CryptBlocks(crypted, padding)
