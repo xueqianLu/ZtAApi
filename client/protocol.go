@@ -14,11 +14,12 @@ type InvalidPacket interface {
 
 type AdminLoginReqPacket struct {
 	//Type      int    `json:"type"`
-	PwdHash   string `json:"pwdhash"`
-	Timestamp int64  `json:"timestamp"`
-	DeviceID  string `json:"device_id"`
-	Username  string `json:"username"`
-	Passwd    string `json:"passwd"`
+	PwdHash    string `json:"pwdhash"`
+	Timestamp  int64  `json:"timestamp"`
+	DeviceID   string `json:"device_id"`
+	Username   string `json:"username"`
+	Passwd     string `json:"passwd"`
+	VerifyCode string `json:"verify_code"`
 }
 
 func (l AdminLoginReqPacket) Valid() bool {
@@ -36,12 +37,13 @@ func (l AdminLoginReqPacket) Bytes() []byte {
 
 type LoginReqPacket struct {
 	//Type        int        `json:"type"`
-	DeviceID  string `json:"device_id"`
-	Pubkey    string `json:"pubkey"`
-	PwdHash   string `json:"pwdhash"`
-	Timestamp int64  `json:"timestamp"`
-	Username  string `json:"username"`
-	Passwd    string `json:"passwd"`
+	DeviceID   string `json:"device_id"`
+	Pubkey     string `json:"pubkey"`
+	PwdHash    string `json:"pwdhash"`
+	Timestamp  int64  `json:"timestamp"`
+	Username   string `json:"username"`
+	Passwd     string `json:"passwd"`
+	VerifyCode string `json:"verify_code"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -63,9 +65,10 @@ func (l LoginReqPacket) Bytes() []byte {
 type ChangePwdPacket struct {
 	//Type       int    `json:"type"`
 	OldPwdHash string `json:"oldpwdhash"`
-	Passwd     string `json:"passwd"`
+	NewPasswd  string `json:"newpasswd"`
 	Timestamp  int64  `json:"timestamp"`
 	Username   string `json:"username"`
+	Passwd     string `json:"passwd"`
 }
 
 func (c ChangePwdPacket) Valid() bool {
@@ -180,7 +183,7 @@ type LoginResData struct {
 	SliceCount  int    `json:"slice_count"`
 	SliceOffset int    `json:"slice_offset"`
 	SliceInfo   string `json:"info"`
-	VerifyCode  string `json:"verify_code"`
+	VerifyType  string `json:"verify_type"`
 }
 
 func (p LoginResponse) String() string {

@@ -142,7 +142,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 		return err
 	}
 	// den
-	decPac, err = GetDecryptResponseWithHmac(local.UserName, local.Password, res)
+	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 		return nil, err
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewReqUserHomeCmd(local.UserName, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+	cmd, _ := NewReqUserHomeCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
 	res, err := requestToServer(local, cmd)
 	if err != nil {
 		return nil, err
@@ -380,7 +380,7 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 		return nil, err
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewReqUserInfoCmd(local.UserName, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
+	cmd, _ := NewReqUserInfoCmd(local.UserName, local.Password, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
 	res, err := requestToServer(local, cmd)
 	if err != nil {
 		return nil, err
@@ -430,7 +430,7 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 		return err
 	}
 	// den
-	decPac, err = GetDecryptResponseWithHmac(local.UserName, local.Password, res)
+	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
 	if err != nil {
 		return err
 	}
