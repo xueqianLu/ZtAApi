@@ -14,12 +14,13 @@ type InvalidPacket interface {
 
 type AdminLoginReqPacket struct {
 	//Type      int    `json:"type"`
-	PwdHash    string `json:"pwdhash"`
-	Timestamp  int64  `json:"timestamp"`
-	DeviceID   string `json:"device_id"`
-	Username   string `json:"username"`
-	Passwd     string `json:"passwd"`
-	VerifyCode string `json:"verify_code"`
+	PwdHash     string     `json:"pwdhash"`
+	Timestamp   int64      `json:"timestamp"`
+	DeviceID    string     `json:"device_id"`
+	Username    string     `json:"username"`
+	Passwd      string     `json:"passwd"`
+	VerifyCode  string     `json:"verify_code"`
+	MachineInfo SystemInfo `json:"system_info"`
 }
 
 func (l AdminLoginReqPacket) Valid() bool {
@@ -37,13 +38,14 @@ func (l AdminLoginReqPacket) Bytes() []byte {
 
 type LoginReqPacket struct {
 	//Type        int        `json:"type"`
-	DeviceID   string `json:"device_id"`
-	Pubkey     string `json:"pubkey"`
-	PwdHash    string `json:"pwdhash"`
-	Timestamp  int64  `json:"timestamp"`
-	Username   string `json:"username"`
-	Passwd     string `json:"passwd"`
-	VerifyCode string `json:"verify_code"`
+	DeviceID    string     `json:"device_id"`
+	Pubkey      string     `json:"pubkey"`
+	PwdHash     string     `json:"pwdhash"`
+	Timestamp   int64      `json:"timestamp"`
+	Username    string     `json:"username"`
+	Passwd      string     `json:"passwd"`
+	VerifyCode  string     `json:"verify_code"`
+	MachineInfo SystemInfo `json:"system_info"`
 }
 
 func (l LoginReqPacket) Valid() bool {

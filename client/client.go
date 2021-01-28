@@ -198,7 +198,8 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigI
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
 
-	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId, local.User.Sm2Priv, managerCert)
+	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
+		local.User.Sm2Priv, managerCert, *sysinfo)
 	if cmd == nil {
 		log.Println("new login cmd is null")
 	}
@@ -483,7 +484,8 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResDat
 		log.Println("exchange cert success, goto login")
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId, local.User.Sm2Priv, managerCert)
+	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
+		local.User.Sm2Priv, managerCert, *sysinfo)
 	res, err = requestToServer(local, cmd)
 	if err != nil {
 		return nil, err
