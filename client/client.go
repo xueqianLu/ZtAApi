@@ -233,6 +233,14 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigI
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return nil, err
 	}
+
+	if login.VerifyType != "" {
+		// 如果用户需要登录验证，则停止获取后续信息，输入验证码后重新登录.
+		allConfigInfo := &conf.AllConfigInfo{}
+		allConfigInfo.VerifyType = login.VerifyType
+		return allConfigInfo, nil
+	}
+
 	local.User.DeviceId = sysinfo.DeviceId
 	var userConfig string
 	userConfig += login.SliceInfo
