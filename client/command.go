@@ -119,10 +119,10 @@ func NewUserCommand(username string, deviceid string, privk *sm2.PrivateKey, man
 }
 
 func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
-	privk *sm2.PrivateKey, manager_cert *sm2.Certificate, sysinfo SystemInfo) (*UserCmd, error) {
+	privk *sm2.PrivateKey, manager_cert *sm2.Certificate, sysinfo SystemInfo, verifyCode string) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd, MachineInfo: sysinfo}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode}
 	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
 	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
@@ -137,10 +137,10 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 }
 
 func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.PrivateKey,
-	manager_cert *sm2.Certificate, sysinfo SystemInfo) (*UserCmd, error) {
+	manager_cert *sm2.Certificate, sysinfo SystemInfo, verifyCode string) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := AdminLoginReqPacket{DeviceID: deviceId, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd, MachineInfo: sysinfo}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode}
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}

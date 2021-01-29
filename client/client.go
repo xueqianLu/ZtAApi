@@ -168,7 +168,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	return local.User.SaveManagerCert([]byte(info.ManagerCert))
 }
 
-func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigInfo, error) {
+func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string) (*conf.AllConfigInfo, error) {
 	var err error
 	var res, decPac []byte
 
@@ -199,7 +199,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string) (*conf.AllConfigI
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
 
 	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo)
+		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode)
 	if cmd == nil {
 		log.Println("new login cmd is null")
 	}
@@ -464,7 +464,7 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 	return local.User.SaveManagerCert([]byte(info.ManagerCert))
 }
 
-func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResData, error) {
+func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string) (*AdminLoginResData, error) {
 	var err error
 	var res, decPac []byte
 
@@ -493,7 +493,7 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResDat
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
 	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo)
+		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode)
 	res, err = requestToServer(local, cmd)
 	if err != nil {
 		return nil, err
