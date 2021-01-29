@@ -137,10 +137,10 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 }
 
 func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.PrivateKey,
-	manager_cert *sm2.Certificate, sysinfo SystemInfo, verifyCode string) (*UserCmd, error) {
+	manager_cert *sm2.Certificate, sysinfo SystemInfo, verifyCode string, getUrl bool) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := AdminLoginReqPacket{DeviceID: deviceId, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, GetUrl: getUrl}
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}

@@ -20,6 +20,7 @@ type AdminLoginReqPacket struct {
 	Username    string     `json:"username"`
 	Passwd      string     `json:"passwd"`
 	VerifyCode  string     `json:"verify_code"`
+	GetUrl      bool       `json:"get_url"`
 	MachineInfo SystemInfo `json:"system_info"`
 }
 

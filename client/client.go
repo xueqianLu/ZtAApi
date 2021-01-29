@@ -493,7 +493,62 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
 	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode)
+		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, false)
+	res, err = requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	//log.Printf("decode login response status = %d\n", head.Status)
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return nil, err
+	}
+
+	var info = &AdminLoginResponse{}
+	if err = json.Unmarshal(decPac, &info); err != nil {
+		//log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+
+	return &info.AdminLoginResData, nil
+}
+
+func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResData, error) {
+	var err error
+	var res, decPac []byte
+
+	err = checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+
+	var sysinfo = &common.SystemInfo{}
+	err = json.Unmarshal([]byte(sysinfostr), &sysinfo)
+	if err != nil {
+		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
+		return nil, err
+	}
+	log.Println("Admin login sysinfostr", sysinfostr)
+	log.Println("Admin login sysinfo", sysinfo)
+
+	if needExchangeCert(local) {
+		return nil, errors.New("need exchange cert first")
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
+		local.User.Sm2Priv, managerCert, *sysinfo, "", true)
 	res, err = requestToServer(local, cmd)
 	if err != nil {
 		return nil, err
