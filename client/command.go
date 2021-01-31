@@ -233,10 +233,12 @@ func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
 	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
 
 	var key1 = GenRandomHash()
+	log.Println("in hmc command, key1 = ", hex.EncodeToString(key1[:]))
 	var key = BytesXor(key1[:], cmd.Random[:])
 	copy(cmd.Key[:], key)
 
 	cmd.Key2 = DevideKey(key1)
+	log.Println("after device key = ", hex.EncodeToString(cmd.Key2))
 
 	cmd.EncPacket = SM4EncryptCBC(cmd.Key2, packet.Bytes())
 	if cmd.EncPacket == nil {

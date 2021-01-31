@@ -8,6 +8,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"log"
 )
 
 var (
@@ -102,6 +104,10 @@ func GenRandomHash() Hash {
 
 func DevideKey(key Hash) []byte {
 	var keytmp = BytesXor(key[0:16], key[16:])
-	var keyfin = SM4EncryptCBCWithIV(keytmp[:], keytmp[:], []byte(KEYIV))
-	return keyfin
+	var d = make([]byte, 16)
+	copy(d[:], keytmp)
+	log.Println("in devide key , before sm4, key is ", hex.EncodeToString(keytmp))
+	var keyfin = SM4EncryptCBCWithIV(keytmp[:], d, []byte(KEYIV))
+	log.Println("in devide key , after sm4, key is ", hex.EncodeToString(keyfin))
+	return keyfin[:16]
 }

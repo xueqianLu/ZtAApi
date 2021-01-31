@@ -204,7 +204,7 @@ func SM3Hash(data []byte) Hash {
 func SM4EncryptCBC(key sm4.SM4Key, packet []byte) []byte {
 	block, e := sm4.NewCipher(key)
 	if e != nil {
-		println("SM4DecryptCBC new cipher error", e)
+		log.Println("SM4DecryptCBC new cipher error", e)
 		return nil
 	}
 
@@ -220,7 +220,7 @@ func SM4EncryptCBC(key sm4.SM4Key, packet []byte) []byte {
 func SM4EncryptCBCWithIV(key sm4.SM4Key, packet []byte, iv []byte) []byte {
 	block, e := sm4.NewCipher(key)
 	if e != nil {
-		println("SM4DecryptCBC new cipher error", e)
+		log.Println("SM4DecryptCBC new cipher error", e)
 		return nil
 	}
 
@@ -235,12 +235,12 @@ func SM4EncryptCBCWithIV(key sm4.SM4Key, packet []byte, iv []byte) []byte {
 
 func SM4DecryptCBC(key sm4.SM4Key, crypted []byte) []byte {
 	if len(crypted) == 0 || (len(crypted)%16) != 0 {
-		println("SM4DecryptCBC Decrypt ", len(crypted))
+		log.Println("SM4DecryptCBC Decrypt ", len(crypted))
 		return nil
 	}
 	block, e := sm4.NewCipher(key)
 	if e != nil {
-		println("SM4DecryptCBC new cipher failed,", e)
+		log.Println("SM4DecryptCBC new cipher failed,", e)
 		return nil
 	}
 	blockMode := cipher.NewCBCDecrypter(block, []byte(ZTAIV))
