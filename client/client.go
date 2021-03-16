@@ -10,7 +10,9 @@ import (
 	"io"
 	"log"
 	"net"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -38,7 +40,7 @@ func SetServerInfo(local *conf.StorageConfig, serveraddr string) {
 }
 
 func GetServerInfo(local *conf.StorageConfig) string {
-	return local.ServerAddr + ":" + strconv.Itoa(ServerPort)
+	return getServerIp(local.ServerAddr) + ":" + strconv.Itoa(ServerPort)
 }
 
 func checkAndGetUserConfig(local *conf.StorageConfig) error {
@@ -65,9 +67,39 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 	return err
 }
 
+func checkIp(server string) bool {
+	addr := strings.Trim(server, " ")
+	regStr := `^(([1-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.)(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){2}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`
+	if match, _ := regexp.MatchString(regStr, addr); match {
+		return true
+	}
+	return false
+}
+func getServerIp(server string) string {
+	if checkIp(server) {
+		return server
+	} else {
+		ips, err := net.LookupIP(server)
+		if err != nil {
+			return ""
+		} else {
+			return ips[0].String()
+		}
+	}
+}
 func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
+	var ip string
+	if checkIp(local.ServerAddr) {
+		ip = local.ServerAddr
+	} else {
+		ips, err := net.LookupAddr(local.ServerAddr)
+		if err != nil {
+			return []byte{}, errors.New(fmt.Sprintf("can't parsed server %s", local.ServerAddr))
+		}
+		ip = ips[0]
+	}
 
-	serverAddr := local.ServerAddr + ":" + strconv.Itoa(ServerPort)
+	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
 	log.Println("request to server", serverAddr)
 	conn, err := net.Dial("udp", serverAddr)
 	if err != nil {
