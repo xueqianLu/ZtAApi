@@ -200,6 +200,23 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	return local.User.SaveManagerCert([]byte(info.ManagerCert))
 }
 
+func updateServerHistory(local *conf.StorageConfig) {
+	var history = make([]string, 0)
+	var p = make(map[string]int)
+	if len(local.ServerAddr) == 0 {
+		return
+	}
+	history = append(history, local.ServerAddr)
+	p[local.ServerAddr] = 1
+	for _, h := range local.ServerHistory {
+		if _, exist := p[h]; !exist {
+			history = append(history, h)
+			p[h] = 1
+		}
+	}
+	local.ServerHistory = history
+}
+
 func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string) (*conf.AllConfigInfo, error) {
 	var err error
 	var res, decPac []byte
@@ -272,6 +289,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		allConfigInfo.VerifyType = login.VerifyType
 		return allConfigInfo, nil
 	}
+	updateServerHistory(local) // add server to history.
 
 	local.User.DeviceId = sysinfo.DeviceId
 	var userConfig string

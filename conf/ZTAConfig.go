@@ -26,9 +26,9 @@ type managerCertInfo struct {
 }
 
 type UserConfig struct {
-	UserName   string `json:"username"`  // username
-	ServerAddr string `json:"-"`         // server addr
-	AutoLogin  bool   `json:"autologin"` // autologin
+	UserName   string `json:"username"`   // username
+	ServerAddr string `json:"serveraddr"` // server addr
+	AutoLogin  bool   `json:"autologin"`  // autologin
 	ConfPath   string `json:"-"`
 	DeviceId   string `json:"-"` // current device id
 
@@ -87,15 +87,31 @@ func (c *UserConfig) GetManagerCert(server string) *sm2.Certificate {
 	return nil
 }
 
-func ManagerCertName(path, server string) string {
-	fname := "server-" + server + managerCertSuffix
-	return filepath.Join(path, fname)
+func getManagerConfigPath(userpath string, server string) (string, error) {
+	managerPath := filepath.Join(userpath, server)
+	err := os.MkdirAll(managerPath, os.ModeDir|0700)
+	if err != nil {
+		return "", err
+	}
+	return managerPath, nil
+}
+
+func ManagerCertName(path, server string) (string, error) {
+	managerPath, err := getManagerConfigPath(path, server)
+	if err != nil {
+		return "", err
+	} else {
+		return filepath.Join(managerPath, managerCertSuffix), nil
+	}
 }
 
 func (c *UserConfig) SaveManagerCert(certData []byte) error {
 
-	savefileName := ManagerCertName(c.ConfPath, c.ServerAddr)
-	err := ioutil.WriteFile(savefileName, certData, 0755)
+	savefileName, err := ManagerCertName(c.ConfPath, c.ServerAddr)
+	if err != nil {
+		return err
+	}
+	err = ioutil.WriteFile(savefileName, certData, 0755)
 	if err != nil {
 		log.Println("Write certificate to file failed, err ", err, "filename", savefileName)
 		return err
@@ -140,14 +156,19 @@ func (c *UserConfig) addManagerCert(server string, cert *sm2.Certificate) {
 }
 
 type StorageConfig struct {
-	RootPath   string      `json:"configpath"`
-	UserName   string      `json:"username"`
-	Password   string      `json:"-"`          // dec password
-	ServerAddr string      `json:"serveraddr"` // server addr
-	User       *UserConfig `json:"-"`
+	RootPath      string      `json:"configpath"`
+	UserName      string      `json:"username"`
+	Password      string      `json:"-"`             // dec password
+	ServerAddr    string      `json:"serveraddr"`    // server addr
+	ServerHistory []string    `json:"serverhistory"` // server history
+	User          *UserConfig `json:"-"`
 
 	PrivateKey string `json:"private"` // private key
 	PublicKey  string `json:"-"`       // public key
+}
+
+func GetServerHistory(local *StorageConfig) []string {
+	return local.ServerHistory
 }
 
 func GetUserConfigPath(stConfig *StorageConfig) (string, error) {
@@ -182,6 +203,27 @@ func GetUserLocalConfig(userpath string, username string, serveraddr string) (*U
 		c, e = loadUserLocalConfig(userpath, username, serveraddr)
 	}
 	return c, e
+}
+
+func getManagerCert(userpath string, server string) (*managerCertInfo, error) {
+	managername, err := ManagerCertName(userpath, server)
+	if err != nil {
+		return nil, err
+	}
+	if certdata, err := ioutil.ReadFile(managername); err != nil {
+		log.Println("read manager cert ", managername, " failed, err ", err.Error())
+		return nil, err
+	} else {
+		info := &managerCertInfo{
+			serveraddr: server,
+		}
+		if info.cert, err = common.SM2ReadCertificateFromMem(certdata); err != nil {
+			log.Println("ReadCert from data failed, err ", err)
+			return nil, err
+		} else {
+			return info, nil
+		}
+	}
 }
 
 func loadUserLocalConfig(userpath string, username string, serveraddr string) (*UserConfig, error) {
@@ -232,20 +274,12 @@ func loadUserLocalConfig(userpath string, username string, serveraddr string) (*
 
 		// get all server manager cert
 		for _, server := range config.ServerList {
-			managername := ManagerCertName(userpath, serveraddr)
-			if certdata, err := ioutil.ReadFile(managername); err != nil {
-				log.Println("read manager cert ", managername, " failed, err ", err.Error())
+			info, err := getManagerCert(userpath, server)
+			if err != nil {
+				log.Println("read manager cert ", server, " failed, err ", err.Error())
 				continue
 			} else {
-				info := &managerCertInfo{
-					serveraddr: server,
-				}
-				if info.cert, err = common.SM2ReadCertificateFromMem(certdata); err != nil {
-					log.Println("ReadCert from data failed, err ", err)
-					continue
-				} else {
-					config.ManagerCerts = append(config.ManagerCerts, info)
-				}
+				config.ManagerCerts = append(config.ManagerCerts, info)
 			}
 		}
 	}
