@@ -217,7 +217,7 @@ func updateServerHistory(local *conf.StorageConfig) {
 	local.ServerHistory = history
 }
 
-func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string) (*conf.AllConfigInfo, error) {
+func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string, secondVerify string) (*conf.AllConfigInfo, error) {
 	var err error
 	var res, decPac []byte
 
@@ -248,7 +248,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
 
 	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode)
+		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
 	if cmd == nil {
 		log.Println("new login cmd is null")
 	}
@@ -469,6 +469,37 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 	return &slist.SliceInfoResData, nil
 }
 
+func ClientRegetVerifyCode(local *conf.StorageConfig) error {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return err
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert)
+	res, err := requestToServer(local, cmd)
+	if err != nil {
+		return err
+	}
+	// den
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return err
+	}
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return err
+	}
+	return nil
+}
+
 func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) error {
 	var err error
 	var res, decPac []byte
@@ -628,4 +659,35 @@ func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResD
 	}
 
 	return &info.AdminLoginResData, nil
+}
+
+func AdminRegetVerifyCode(local *conf.StorageConfig) error {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return err
+	}
+	managerCert := local.User.GetManagerCert(local.ServerAddr)
+	cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert)
+	res, err := requestToServer(local, cmd)
+	if err != nil {
+		return err
+	}
+	// den
+	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+	if err != nil {
+		return err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return err
+	}
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return err
+	}
+	return nil
 }

@@ -18,10 +18,12 @@ const (
 	NormalUserLogout       byte = 4 //普通用户退出登录
 	NormalUserReqSliceInfo byte = 5 //普通用户获取用户配置信息
 
-	NormalUserReqHome byte = 7 //普通用户获取home url
+	NormalUserReqHome         byte = 7 //普通用户获取home url
+	NormalUserRegetVerifyCode byte = 8 //普通用户获取用户配置信息
 
 	AdminExchangeCertMsg byte = 10 //管理员交换证书
 	AdminLoginMsg        byte = 11 //管理员登录
+	AdminReGetVerifyCode byte = 12 // 管理员重新获取验证码
 )
 
 type Packet struct {
@@ -119,10 +121,11 @@ func NewUserCommand(username string, deviceid string, privk *sm2.PrivateKey, man
 }
 
 func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
-	privk *sm2.PrivateKey, manager_cert *sm2.Certificate, sysinfo SystemInfo, verifyCode string) (*UserCmd, error) {
+	privk *sm2.PrivateKey, manager_cert *sm2.Certificate, sysinfo SystemInfo,
+	verifyCode string, secondVerify string) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: verifyCode}
 	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
 	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
@@ -151,11 +154,29 @@ func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.Pr
 	return cmd, nil
 }
 
+func NewAdminRegetVerifyCodeCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := ReGetVerifyCodePacket{Timestamp: time.Now().Unix(),
+		Username: name, Passwd: passwd}
+	p := &Packet{AdminReGetVerifyCode, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
 func NewChangePwdCmd(name string, deviceId string, passwd string, newpwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	oldpwdhash := SHA256([]byte(passwd))
 	c := ChangePwdPacket{OldPwdHash: hex.EncodeToString(oldpwdhash), NewPasswd: newpwd, Timestamp: time.Now().Unix(),
 		Username: name, Passwd: passwd}
 	p := &Packet{NormalUserChangPwd, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewRegetVerifyCodeCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := ReGetVerifyCodePacket{Timestamp: time.Now().Unix(),
+		Username: name, Passwd: passwd}
+	p := &Packet{NormalUserRegetVerifyCode, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil

@@ -39,14 +39,15 @@ func (l AdminLoginReqPacket) Bytes() []byte {
 
 type LoginReqPacket struct {
 	//Type        int        `json:"type"`
-	DeviceID    string     `json:"device_id"`
-	Pubkey      string     `json:"pubkey"`
-	PwdHash     string     `json:"pwdhash"`
-	Timestamp   int64      `json:"timestamp"`
-	Username    string     `json:"username"`
-	Passwd      string     `json:"passwd"`
-	VerifyCode  string     `json:"verify_code"`
-	MachineInfo SystemInfo `json:"system_info"`
+	DeviceID         string     `json:"device_id"`
+	Pubkey           string     `json:"pubkey"`
+	PwdHash          string     `json:"pwdhash"`
+	Timestamp        int64      `json:"timestamp"`
+	Username         string     `json:"username"`
+	Passwd           string     `json:"passwd"`
+	VerifyCode       string     `json:"verify_code"`
+	SecondVerifyCode string     `json:"second_verifyCode"`
+	MachineInfo      SystemInfo `json:"system_info"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -79,6 +80,26 @@ func (c ChangePwdPacket) Valid() bool {
 }
 
 func (c ChangePwdPacket) Bytes() []byte {
+	bs, err := json.Marshal(c)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
+type ReGetVerifyCodePacket struct {
+	//Type       int    `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
+}
+
+func (c ReGetVerifyCodePacket) Valid() bool {
+	return true
+}
+
+func (c ReGetVerifyCodePacket) Bytes() []byte {
 	bs, err := json.Marshal(c)
 	if err != nil {
 		return nil
