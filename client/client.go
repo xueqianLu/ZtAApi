@@ -247,6 +247,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
 
+	local.User.DeviceId = sysinfo.DeviceId
 	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
 		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
 	if cmd == nil {
@@ -291,7 +292,6 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	}
 	updateServerHistory(local) // add server to history.
 
-	local.User.DeviceId = sysinfo.DeviceId
 	var userConfig string
 	userConfig += login.SliceInfo
 	var reqSliceOffset = login.SliceOffset + 1
