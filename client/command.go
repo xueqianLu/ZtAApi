@@ -125,7 +125,7 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 	verifyCode string, secondVerify string) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: verifyCode}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: secondVerify}
 	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
 	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
