@@ -40,7 +40,12 @@ func SetServerInfo(local *conf.StorageConfig, serveraddr string) {
 }
 
 func GetServerInfo(local *conf.StorageConfig) string {
-	return getServerIp(local.ServerAddr) + ":" + strconv.Itoa(ServerPort)
+	addr, err := getServerIp(local.ServerAddr)
+	if err != nil {
+		return ""
+	}
+	addr = addr + ":" + strconv.Itoa(ServerPort)
+	return addr
 }
 
 func checkAndGetUserConfig(local *conf.StorageConfig) error {
@@ -75,28 +80,22 @@ func checkIp(server string) bool {
 	}
 	return false
 }
-func getServerIp(server string) string {
+func getServerIp(server string) (string, error) {
 	if checkIp(server) {
-		return server
+		return server, nil
 	} else {
-		ips, err := net.LookupIP(server)
+		ipaddr, err := net.ResolveIPAddr("ip", server)
 		if err != nil {
-			return ""
+			return "", err
 		} else {
-			return ips[0].String()
+			return ipaddr.String(), nil
 		}
 	}
 }
 func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
-	var ip string
-	if checkIp(local.ServerAddr) {
-		ip = local.ServerAddr
-	} else {
-		ips, err := net.LookupAddr(local.ServerAddr)
-		if err != nil {
-			return []byte{}, errors.New(fmt.Sprintf("can't parsed server %s", local.ServerAddr))
-		}
-		ip = ips[0]
+	ip, err := getServerIp(local.ServerAddr)
+	if err != nil {
+		return []byte{}, errors.New(fmt.Sprintf("can't parsed server %s", local.ServerAddr))
 	}
 
 	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
