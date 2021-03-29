@@ -216,21 +216,22 @@ func updateServerHistory(local *conf.StorageConfig) {
 	local.ServerHistory = history
 }
 
-func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string, secondVerify string) (*conf.AllConfigInfo, error) {
+func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string, secondVerify string) (*conf.AllConfigInfo, int, error) {
 	var err error
 	var res, decPac []byte
 
 	err = checkAndGetUserConfig(local)
 	if err != nil {
-		return nil, err
+		return nil, 1000, err
 	}
 
 	var sysinfo = &common.SystemInfo{}
 	err = json.Unmarshal([]byte(sysinfostr), &sysinfo)
 	if err != nil {
 		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
-		return nil, err
+		return nil, 1001, err
 	}
+	local.Sysinfo = sysinfo
 	//log.Println("client login sysinfostr", sysinfostr)
 	log.Println("client login sysinfo", sysinfo)
 
@@ -240,7 +241,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		err = clientExchangeCert(local, *sysinfo)
 		if err != nil {
 			log.Println("exchange cert failed, err ", err)
-			return nil, err
+			return nil, 1002, err
 		}
 		log.Println("exchange cert success, goto login")
 	}
@@ -254,40 +255,40 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	}
 	if e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
-		return nil, e
+		return nil, 1003, e
 	}
 	res, err = requestToServer(local, cmd)
 	if err != nil {
-		return nil, err
+		return nil, 1004, err
 	}
 	// den
 	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return nil, err
+		return nil, 1005, err
 	}
 
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
 		log.Println("decpac unmarshal to server response failed.")
-		return nil, err
+		return nil, 1006, err
 	}
 	if head.Status != 1 {
 		msg, _ := common.Base64Decode(head.Msg)
 		err = errors.New(string(msg))
-		return nil, err
+		return nil, head.Status, err
 	}
 	// parse res
 	var login = &LoginResponse{}
 	if err = json.Unmarshal(decPac, &login); err != nil {
 		log.Println("decpac unmarshal to LoginResponse failed.")
-		return nil, err
+		return nil, 1008, err
 	}
 
 	if login.VerifyType != "" {
 		// 如果用户需要登录验证，则停止获取后续信息，输入验证码后重新登录.
 		allConfigInfo := &conf.AllConfigInfo{}
 		allConfigInfo.VerifyType = login.VerifyType
-		return allConfigInfo, nil
+		return allConfigInfo, 10000, nil
 	}
 	updateServerHistory(local) // add server to history.
 
@@ -296,7 +297,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	var reqSliceOffset = login.SliceOffset + 1
 	for i := reqSliceOffset; i < login.SliceCount; i++ {
 		if configSlice, e := ClientReqSliceInfo(local, i); e != nil {
-			return nil, errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+			return nil, 1009, errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
 		} else {
 			userConfig += configSlice.SliceInfo
 		}
@@ -304,15 +305,15 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 
 	allConfigInfo := &conf.AllConfigInfo{}
 	if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
-		return nil, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
+		return nil, 1010, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
 	} else {
 		log.Println("after decode base64:", decodedConfig)
 		if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
 			log.Println("user login, unmarshal to allConfigInfo failed.")
-			return nil, err
+			return nil, 1011, err
 		}
 	}
-	return allConfigInfo, nil
+	return allConfigInfo, 10000, nil
 }
 
 func ClientLogout(local *conf.StorageConfig, force bool) error {
@@ -475,7 +476,7 @@ func ClientRegetVerifyCode(local *conf.StorageConfig) error {
 		return err
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert)
+	cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 	res, err := requestToServer(local, cmd)
 	if err != nil {
 		return err
@@ -561,6 +562,7 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 	}
 	log.Println("Admin login sysinfostr", sysinfostr)
 	log.Println("Admin login sysinfo", sysinfo)
+	local.Sysinfo = sysinfo
 
 	if needExchangeCert(local) {
 		log.Println("need exchange cert.")
@@ -667,7 +669,7 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 		return err
 	}
 	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert)
+	cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 	res, err := requestToServer(local, cmd)
 	if err != nil {
 		return err

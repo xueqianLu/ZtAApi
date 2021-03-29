@@ -154,9 +154,10 @@ func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.Pr
 	return cmd, nil
 }
 
-func NewAdminRegetVerifyCodeCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+func NewAdminRegetVerifyCodeCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey,
+	manager_cert *sm2.Certificate, sysinfo SystemInfo) (*UserCmd, error) {
 	c := ReGetVerifyCodePacket{Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo}
 	p := &Packet{AdminReGetVerifyCode, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
@@ -173,9 +174,10 @@ func NewChangePwdCmd(name string, deviceId string, passwd string, newpwd string,
 	return cmd, nil
 }
 
-func NewRegetVerifyCodeCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+func NewRegetVerifyCodeCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey,
+	manager_cert *sm2.Certificate, sysinfo SystemInfo) (*UserCmd, error) {
 	c := ReGetVerifyCodePacket{Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo}
 	p := &Packet{NormalUserRegetVerifyCode, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 

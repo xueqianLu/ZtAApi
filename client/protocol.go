@@ -90,9 +90,10 @@ func (c ChangePwdPacket) Bytes() []byte {
 
 type ReGetVerifyCodePacket struct {
 	//Type       int    `json:"type"`
-	Timestamp int64  `json:"timestamp"`
-	Username  string `json:"username"`
-	Passwd    string `json:"passwd"`
+	Timestamp   int64      `json:"timestamp"`
+	Username    string     `json:"username"`
+	Passwd      string     `json:"passwd"`
+	MachineInfo SystemInfo `json:"system_info"`
 }
 
 func (c ReGetVerifyCodePacket) Valid() bool {

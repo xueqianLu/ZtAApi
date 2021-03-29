@@ -14,7 +14,7 @@ func TestGetServerInfo(t *testing.T) {
 		"aws.amazon.com",
 	}
 	for _, server := range serverlist {
-		ip := getServerIp(server)
+		ip, _ := getServerIp(server)
 		fmt.Printf("get server(%s)'s ip = %s\n", server, ip)
 	}
 }

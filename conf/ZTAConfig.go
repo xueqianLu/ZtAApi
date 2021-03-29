@@ -156,12 +156,13 @@ func (c *UserConfig) addManagerCert(server string, cert *sm2.Certificate) {
 }
 
 type StorageConfig struct {
-	RootPath      string      `json:"configpath"`
-	UserName      string      `json:"username"`
-	Password      string      `json:"-"`             // dec password
-	ServerAddr    string      `json:"serveraddr"`    // server addr
-	ServerHistory []string    `json:"serverhistory"` // server history
-	User          *UserConfig `json:"-"`
+	RootPath      string             `json:"configpath"`
+	UserName      string             `json:"username"`
+	Password      string             `json:"-"`             // dec password
+	ServerAddr    string             `json:"serveraddr"`    // server addr
+	ServerHistory []string           `json:"serverhistory"` // server history
+	User          *UserConfig        `json:"-"`
+	Sysinfo       *common.SystemInfo `json:"-"` // system info
 
 	PrivateKey string `json:"private"` // private key
 	PublicKey  string `json:"-"`       // public key
