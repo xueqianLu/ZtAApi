@@ -247,7 +247,7 @@ func (p UserInfoResponse) String() string {
 }
 
 type ExchangeCertResponse struct {
-	CertResData `json:"data"`
+	SliceInfoResData `json:"data"`
 }
 
 type CertResData struct {

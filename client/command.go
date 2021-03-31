@@ -25,7 +25,7 @@ const (
 	AdminExchangeCertMsg byte = 10 //管理员交换证书
 	AdminLoginMsg        byte = 11 //管理员登录
 	AdminReGetVerifyCode byte = 12 // 管理员重新获取验证码
-	AdminReqCertSlice    byte = 13 // 管理员获取证书分片信息
+	AdminReqCertSliceCmd byte = 13 // 管理员获取证书分片信息
 )
 
 type Packet struct {
@@ -286,10 +286,26 @@ func NewNormalExchangeCertCmd(name string, passwd string, csr string, sysinfo Sy
 	return cmd, nil
 }
 
+func NewNormalReqCertSliceCmd(name string, passwd string, startOffset int, sysinfo SystemInfo) (*HmacCmd, error) {
+	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix()}
+	p := &Packet{NormalUserReqCertSlice, c.Bytes()}
+	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
+
+	return cmd, nil
+}
+
 func NewAdminExchangeCertCmd(name string, passwd string, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo,
 		Username: name, Passwd: passwd}
 	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
+	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
+
+	return cmd, nil
+}
+
+func NewAdminReqCertSliceCmd(name string, passwd string, startOffset int, sysinfo SystemInfo) (*HmacCmd, error) {
+	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix()}
+	p := &Packet{AdminReqCertSliceCmd, c.Bytes()}
 	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
 
 	return cmd, nil

@@ -196,7 +196,31 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return err
 	}
-	return local.User.SaveManagerCert([]byte(info.ManagerCert))
+
+	var certData string
+	certData += info.SliceInfo
+	var reqSliceOffset = info.SliceOffset + 1
+	for i := reqSliceOffset; i < info.SliceCount; i++ {
+		if certSlice, e := ClientReqCertSlice(local, i); e != nil {
+			return errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+		} else {
+			certData += certSlice.SliceInfo
+		}
+	}
+	var certs = &CertResData{}
+	if len(certData) > 0 {
+		if decodeCerts, ne := common.Base64Decode(certData); ne != nil {
+			return errors.New(fmt.Sprintf("decode cert data failed, e:%s", ne.Error()))
+		} else {
+			log.Println("after decode base64:", decodeCerts)
+			if err = json.Unmarshal(decodeCerts, &certs); err != nil {
+				log.Println("exchange certs, unmarshal to certResData failed, ", err.Error())
+				return err
+			}
+		}
+	}
+
+	return local.User.SaveManagerCert([]byte(certs.ManagerCert))
 }
 
 func updateServerHistory(local *conf.StorageConfig) {
@@ -433,6 +457,52 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 	return &response.UserHomeResData, nil
 }
 
+func ClientReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData, error) {
+	var err error
+	var res, decPac []byte
+	var csr []byte
+
+	csr = local.User.GetScsrData()
+	if csr == nil {
+		return nil, errors.New("have no scsr data")
+	}
+
+	cmd, e := NewNormalReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
+	if e != nil {
+		log.Println("NewReqCertSliceCmd failed", "err", e.Error())
+		return nil, e
+	}
+	res, err = requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	//log.Printf("decode login response status = %d\n", head.Status)
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return nil, err
+	}
+
+	// parse res
+	var info = &ExchangeCertResponse{}
+	if err = json.Unmarshal(decPac, &info); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &info.SliceInfoResData, nil
+}
+
 func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResData, error) {
 
 	err := checkAndGetUserConfig(local)
@@ -543,7 +613,31 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 		log.Println("decpac unmarshal to LoginResponse failed.")
 		return err
 	}
-	return local.User.SaveManagerCert([]byte(info.ManagerCert))
+
+	var certData string
+	certData += info.SliceInfo
+	var reqSliceOffset = info.SliceOffset + 1
+	for i := reqSliceOffset; i < info.SliceCount; i++ {
+		if certSlice, e := AdminReqCertSlice(local, i); e != nil {
+			return errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+		} else {
+			certData += certSlice.SliceInfo
+		}
+	}
+	var certs = &CertResData{}
+	if len(certData) > 0 {
+		if decodeCerts, ne := common.Base64Decode(certData); ne != nil {
+			return errors.New(fmt.Sprintf("decode cert data failed, e:%s", ne.Error()))
+		} else {
+			log.Println("after decode base64:", decodeCerts)
+			if err = json.Unmarshal(decodeCerts, &certs); err != nil {
+				log.Println("exchange certs, unmarshal to certResData failed, ", err.Error())
+				return err
+			}
+		}
+	}
+
+	return local.User.SaveManagerCert([]byte(certs.ManagerCert))
 }
 
 func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string) (*AdminLoginResData, error) {
@@ -692,4 +786,50 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 		return err
 	}
 	return nil
+}
+
+func AdminReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData, error) {
+	var err error
+	var res, decPac []byte
+	var csr []byte
+
+	csr = local.User.GetScsrData()
+	if csr == nil {
+		return nil, errors.New("have no scsr data")
+	}
+
+	cmd, e := NewAdminReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
+	if e != nil {
+		log.Println("NewAdminReqCertSliceCmd failed", "err", e.Error())
+		return nil, e
+	}
+	res, err = requestToServer(local, cmd)
+	if err != nil {
+		return nil, err
+	}
+	// den
+	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	//log.Printf("decode login response status = %d\n", head.Status)
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return nil, err
+	}
+
+	// parse res
+	var info = &ExchangeCertResponse{}
+	if err = json.Unmarshal(decPac, &info); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &info.SliceInfoResData, nil
 }
