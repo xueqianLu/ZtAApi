@@ -295,6 +295,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		}
 	}
 	allConfigInfo := &conf.AllConfigInfo{}
+	allConfigInfo.VerifyType = login.VerifyType
 
 	if len(userConfig) > 0 {
 		updateServerHistory(local) // add server to history.
