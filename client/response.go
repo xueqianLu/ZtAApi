@@ -83,12 +83,3 @@ func ParseAdminLoginResponse(data []byte) (*AdminLoginResData, error) {
 	}
 	return &res.AdminLoginResData, nil
 }
-
-func ParseExchangeCertResponse(data []byte) (*CertResData, error) {
-	res := &ExchangeCertResponse{}
-	if err := json.Unmarshal(data, &res); err != nil {
-		log.Println("decpac unmarshal to loginrespacket failed.")
-		return nil, err
-	}
-	return &res.CertResData, nil
-}
