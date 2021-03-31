@@ -17,6 +17,7 @@ const (
 	NormalUserChangPwd     byte = 3 //普通用户修改密码
 	NormalUserLogout       byte = 4 //普通用户退出登录
 	NormalUserReqSliceInfo byte = 5 //普通用户获取用户配置信息
+	NormalUserReqCertSlice byte = 6 // 普通用户获取证书分片信息
 
 	NormalUserReqHome         byte = 7 //普通用户获取home url
 	NormalUserRegetVerifyCode byte = 8 //普通用户获取用户配置信息
@@ -24,6 +25,7 @@ const (
 	AdminExchangeCertMsg byte = 10 //管理员交换证书
 	AdminLoginMsg        byte = 11 //管理员登录
 	AdminReGetVerifyCode byte = 12 // 管理员重新获取验证码
+	AdminReqCertSlice    byte = 13 // 管理员获取证书分片信息
 )
 
 type Packet struct {

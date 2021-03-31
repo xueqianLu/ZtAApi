@@ -250,15 +250,14 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	local.User.DeviceId = sysinfo.DeviceId
 	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
 		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
-	if cmd == nil {
-		log.Println("new login cmd is null")
-	}
-	if e != nil {
+	if cmd == nil || e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
 		return nil, 1003, e
 	}
+
 	res, err = requestToServer(local, cmd)
 	if err != nil {
+		log.Println("request to server err:", err)
 		return nil, 1004, err
 	}
 	// den
@@ -272,25 +271,18 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		log.Println("decpac unmarshal to server response failed.")
 		return nil, 1006, err
 	}
-	if head.Status != 1 {
-		msg, _ := common.Base64Decode(head.Msg)
-		err = errors.New(string(msg))
-		return nil, head.Status, err
-	}
 	// parse res
 	var login = &LoginResponse{}
 	if err = json.Unmarshal(decPac, &login); err != nil {
 		log.Println("decpac unmarshal to LoginResponse failed.")
-		return nil, 1008, err
+		return nil, 1007, err
 	}
 
-	if login.VerifyType != "" {
-		// 如果用户需要登录验证，则停止获取后续信息，输入验证码后重新登录.
-		allConfigInfo := &conf.AllConfigInfo{}
-		allConfigInfo.VerifyType = login.VerifyType
-		return allConfigInfo, 10000, nil
-	}
-	updateServerHistory(local) // add server to history.
+	//if head.Status != 1 {
+	//	msg, _ := common.Base64Decode(head.Msg)
+	//	err = errors.New(string(msg))
+	//	return nil, head.Status, err
+	//}
 
 	var userConfig string
 	userConfig += login.SliceInfo
@@ -302,18 +294,26 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 			userConfig += configSlice.SliceInfo
 		}
 	}
-
 	allConfigInfo := &conf.AllConfigInfo{}
-	if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
-		return nil, 1010, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
-	} else {
-		log.Println("after decode base64:", decodedConfig)
-		if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
-			log.Println("user login, unmarshal to allConfigInfo failed.")
-			return nil, 1011, err
+
+	if len(userConfig) > 0 {
+		updateServerHistory(local) // add server to history.
+		if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
+			return nil, 1010, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
+		} else {
+			log.Println("after decode base64:", decodedConfig)
+			if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
+				log.Println("user login, unmarshal to allConfigInfo failed.")
+				return nil, 1011, err
+			}
 		}
 	}
-	return allConfigInfo, 10000, nil
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+	}
+
+	return allConfigInfo, head.Status, err
 }
 
 func ClientLogout(local *conf.StorageConfig, force bool) error {
