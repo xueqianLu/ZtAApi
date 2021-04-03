@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -92,6 +93,39 @@ func getServerIp(server string) (string, error) {
 		}
 	}
 }
+
+func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
+	if _, err := conn.Write(data); err != nil {
+		return nil, err
+	}
+
+	ch := make(chan error, 1)
+	msg := make([]byte, MaxReadBuffer)
+	readLen := 0
+	go func() {
+		//log.Println("wait to read msg")
+		readLen, err := conn.Read(msg)
+		log.Println("read msg from server len", readLen) //, "msg", hex.EncodeToString(msg))
+		ch <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		// request timeout
+		return nil, ErrRequestTimeout
+	case err, _ := <-ch:
+		if err != nil {
+			return nil, err
+		} else {
+			return msg[:readLen], nil
+		}
+	}
+}
+
 func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 	ip, err := getServerIp(local.ServerAddr)
 	if err != nil {
@@ -106,34 +140,19 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 		return nil, err
 	}
 	defer conn.Close()
-	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
-	if _, err = conn.Write(cmd.Data()); err != nil {
-		return nil, err
-	}
-	tm := time.NewTimer(RequestTimeout)
-	defer tm.Stop()
 
-	ch := make(chan error, 1)
-	msg := make([]byte, MaxReadBuffer)
-	readLen := 0
-	go func() {
-		//log.Println("wait to read msg")
-		readLen, err = conn.Read(msg)
-		//log.Println("read msg from server len", readLen, "msg", hex.EncodeToString(msg))
-		ch <- err
-	}()
-
-	select {
-	case <-tm.C:
-		// request timeout
-		return nil, ErrRequestTimeout
-	case err, _ := <-ch:
-		if err != nil {
-			return nil, err
+	var response []byte
+	var reserr error
+	for i := 0; i < 3; i++ {
+		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*2)
+		if reserr == ErrRequestTimeout {
+			continue
 		} else {
-			return msg[:readLen], nil
+			break
 		}
 	}
+	return response, reserr
+
 }
 
 func GetUsername(local *conf.StorageConfig) string {
