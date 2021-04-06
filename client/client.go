@@ -95,32 +95,35 @@ func getServerIp(server string) (string, error) {
 }
 
 func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
 	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
 	if _, err := conn.Write(data); err != nil {
 		return nil, err
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	ch := make(chan error, 1)
 	msg := make([]byte, MaxReadBuffer)
 	readLen := 0
 	go func() {
 		//log.Println("wait to read msg")
-		readLen, err := conn.Read(msg)
-		log.Println("read msg from server len", readLen) //, "msg", hex.EncodeToString(msg))
+		rlen, err := conn.Read(msg)
+		readLen = rlen
+		log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
 		ch <- err
 	}()
 
 	select {
 	case <-ctx.Done():
 		// request timeout
+		log.Println("request context timeout at ", time.Now().String())
 		return nil, ErrRequestTimeout
 	case err, _ := <-ch:
 		if err != nil {
 			return nil, err
 		} else {
+			log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
 			return msg[:readLen], nil
 		}
 	}
