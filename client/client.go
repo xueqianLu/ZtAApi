@@ -137,17 +137,19 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 
 	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
 	log.Println("request to server", serverAddr)
-	conn, err := net.Dial("udp", serverAddr)
-	if err != nil {
-		log.Println("net.Dial failed, err", err)
-		return nil, err
-	}
-	defer conn.Close()
 
 	var response []byte
 	var reserr error
 	for i := 0; i < 6; i++ {
-		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*2)
+		log.Println("send request times ", i)
+		conn, err := net.Dial("udp", serverAddr)
+		if err != nil {
+			log.Println("net.Dial failed, err", err)
+			return nil, err
+		}
+
+		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*5)
+		conn.Close()
 		if reserr == ErrRequestTimeout {
 			continue
 		} else {
