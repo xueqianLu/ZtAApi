@@ -140,7 +140,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 
 	var response []byte
 	var reserr error
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 5; i++ {
 		log.Println("send request times ", i)
 		conn, err := net.Dial("udp", serverAddr)
 		if err != nil {
@@ -148,7 +148,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 			return nil, err
 		}
 
-		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*5)
+		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*2)
 		conn.Close()
 		if reserr == ErrRequestTimeout {
 			continue
