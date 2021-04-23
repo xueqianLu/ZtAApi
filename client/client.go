@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -99,34 +98,41 @@ func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]by
 	if _, err := conn.Write(data); err != nil {
 		return nil, err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	ch := make(chan error, 1)
+	conn.SetReadDeadline(time.Now().Add(timeout))
 	msg := make([]byte, MaxReadBuffer)
-	readLen := 0
-	go func() {
-		//log.Println("wait to read msg")
-		rlen, err := conn.Read(msg)
-		readLen = rlen
-		log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
-		ch <- err
-	}()
 
-	select {
-	case <-ctx.Done():
-		// request timeout
-		log.Println("request context timeout at ", time.Now().String())
-		return nil, ErrRequestTimeout
-	case err, _ := <-ch:
-		if err != nil {
-			return nil, err
-		} else {
-			log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
-			return msg[:readLen], nil
-		}
+	rlen, err := conn.Read(msg)
+	if err != nil {
+		return nil, err
 	}
+	return msg[:rlen], nil
+	//
+	//ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	//defer cancel()
+	//
+	//ch := make(chan error, 1)
+	//readLen := 0
+	//go func() {
+	//	//log.Println("wait to read msg")
+	//	rlen, err := conn.Read(msg)
+	//	readLen = rlen
+	//	log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
+	//	ch <- err
+	//}()
+	//
+	//select {
+	//case <-ctx.Done():
+	//	// request timeout
+	//	log.Println("request context timeout at ", time.Now().String())
+	//	return nil, ErrRequestTimeout
+	//case err, _ := <-ch:
+	//	if err != nil {
+	//		return nil, err
+	//	} else {
+	//		log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
+	//		return msg[:readLen], nil
+	//	}
+	//}
 }
 
 func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
