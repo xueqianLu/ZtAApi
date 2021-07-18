@@ -112,6 +112,20 @@ func SM2ReadCertificateFromMem(data []byte) (*sm2.Certificate, error) {
 	return sm2.ReadCertificateFromMem(data)
 }
 
+func SM2ReadPubkeyFromMem(data []byte) (*sm2.PublicKey, error) {
+	if data == nil || len(data) == 0 {
+		return nil, errors.New("invalid pubkey data")
+	}
+	return sm2.ReadPublicKeyFromMem(data, nil)
+}
+
+func SM2ReadPrivateKeyFromMem(data []byte) (*sm2.PrivateKey, error) {
+	if data == nil || len(data) == 0 {
+		return nil, errors.New("invalid private key data")
+	}
+	return sm2.ReadPrivateKeyFromMem(data, nil)
+}
+
 //
 func SM2CreateCertificate(username string, priv *sm2.PrivateKey) ([]byte, error) {
 	country := "CN"
