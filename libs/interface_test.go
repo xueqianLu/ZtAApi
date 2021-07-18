@@ -56,7 +56,7 @@ func TestDecryptLoginPktSM2(t *testing.T) {
 	param.Data = data
 
 	paramstr, _ := json.Marshal(param)
-	//fmt.Println("param:", string(paramstr))
+	fmt.Println("param:", string(paramstr))
 	res := DecrytLoginPktSM2(string(paramstr))
 	fmt.Println("res:", res)
 }
