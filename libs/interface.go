@@ -26,20 +26,9 @@ type Response struct {
 }
 
 //export DecrytLoginPktSM2
-func DecrytLoginPktSM2(param string) *C.char {
-	var p DecrytLoginPktSM2Param
-	log.Println("got param:", param)
+func DecrytLoginPktSM2(privk string, pubk string, data []byte) *C.char {
 	var res Response
-	if e := json.Unmarshal([]byte(param), &p); e != nil {
-		log.Printf("unmarshal param to DecrytLoginPktSM2Param failed, err:%s\n", e.Error())
-		res.Error = "unmarshal failed"
-		d, _ := json.Marshal(res)
-		return C.CString(string(d))
-	}
-	data := common.FromHex(p.Data)
-	pubk := []byte(p.Pubkdata)
-	privk := []byte(p.Privkdata)
-	resdata, err := DecryptLoginPktSM2(data, privk, pubk)
+	resdata, err := DecryptLoginPktSM2([]byte(data), []byte(privk), []byte(pubk))
 	if err != nil {
 		res.Error = err.Error()
 	} else {
@@ -51,20 +40,9 @@ func DecrytLoginPktSM2(param string) *C.char {
 }
 
 //export EncrytLoginPktSM2
-func EncrytLoginPktSM2(param string) *C.char {
-	var p EncryptLoginPktSM2Param
-	log.Println("got param:", param)
+func EncrytLoginPktSM2(username string, privk string, pubk string, data []byte) *C.char {
 	var res Response
-	if e := json.Unmarshal([]byte(param), &p); e != nil {
-		log.Printf("unmarshal param to EncryptLoginPktSM2Param failed, err:%s\n", e.Error())
-		res.Error = "unmarshal failed"
-		d, _ := json.Marshal(res)
-		return C.CString(string(d))
-	}
-	data := common.FromHex(p.Data)
-	pubk := []byte(p.Pubkdata)
-	privk := []byte(p.Privkdata)
-	resdata, err := EncryptLoginPktSM2(p.Username, privk, pubk, data)
+	resdata, err := EncryptLoginPktSM2(username, []byte(privk), []byte(pubk), data)
 	if err != nil {
 		res.Error = err.Error()
 	} else {

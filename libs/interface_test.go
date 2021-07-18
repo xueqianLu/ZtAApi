@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/xueqianLu/ZtAApi/common"
 	"io/ioutil"
-	"log"
 	"testing"
 )
 
@@ -44,7 +43,8 @@ func TestEncryptLoginPktSM2(t *testing.T) {
 
 	paramstr, _ := json.Marshal(param)
 	fmt.Println("param:", string(paramstr))
-	res := EncrytLoginPktSM2(string(paramstr))
+	//res := EncrytLoginPktSM2(string(paramstr))
+	res := EncrytLoginPktSM2(param.Username, param.Privkdata, param.Pubkdata, data)
 	fmt.Println("res:", res)
 }
 
@@ -58,6 +58,7 @@ func TestDecryptLoginPktSM2(t *testing.T) {
 
 	paramstr, _ := json.Marshal(param)
 	fmt.Println("param:", string(paramstr))
-	res := DecrytLoginPktSM2(string(paramstr))
+	//res := DecrytLoginPktSM2(string(paramstr))
+	res := DecrytLoginPktSM2(param.Privkdata, param.Pubkdata, common.FromHex(data))
 	fmt.Println("res:", res)
 }
