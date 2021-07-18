@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"errors"
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
@@ -55,23 +54,28 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	var offset = 0
 	ptype := data[0]
 	offset += 1
-	log.Println("ptype:", ptype)
+	ptype = ptype
+	//log.Println("ptype:", ptype)
 
 	r_checkval := data[offset : offset+blength]
 	offset += blength
-	log.Println("checkval:", common.ToHex(r_checkval))
+	r_checkval = r_checkval
+	//log.Println("checkval:", common.ToHex(r_checkval))
 
 	r_userindx := data[offset : offset+blength]
 	offset += blength
-	log.Println("r_userindx:", common.ToHex(r_userindx))
+	r_userindx = r_userindx
+	//log.Println("r_userindx:", common.ToHex(r_userindx))
 
 	r_deviceid := data[offset : offset+blength]
 	offset += blength
-	log.Println("r_deviceid:", common.ToHex(r_deviceid))
+	r_deviceid = r_deviceid
+	//log.Println("r_deviceid:", common.ToHex(r_deviceid))
 
 	r_random := data[offset : offset+blength]
 	offset += blength
-	log.Println("r_random:", common.ToHex(r_random))
+	r_random = r_random
+	//log.Println("r_random:", common.ToHex(r_random))
 
 	r_enc_length := data[offset : offset+2]
 	offset += 2
@@ -93,10 +97,10 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 		log.Println("Verify response signature failed")
 		return nil, ErrVerifySignature
 	}
-	log.Println("got signature 0x", hex.EncodeToString(r_sign))
-	log.Println("got encrypt data length = ", len(r_encpac))
-	log.Println("got encrypt data:0x", hex.EncodeToString(r_encpac))
-	log.Println("decrypt with privk: 0x", privk.D.Text(16))
+	//log.Println("got signature 0x", hex.EncodeToString(r_sign))
+	//log.Println("got encrypt data length = ", len(r_encpac))
+	//log.Println("got encrypt data:0x", hex.EncodeToString(r_encpac))
+	//log.Println("decrypt with privk: 0x", privk.D.Text(16))
 
 	dec_data, err := common.SM2PrivDecrypt(privk, r_encpac)
 	if err != nil {

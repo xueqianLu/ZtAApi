@@ -4,7 +4,6 @@ import "C"
 import (
 	"encoding/json"
 	"github.com/xueqianLu/ZtAApi/common"
-	"log"
 	"unsafe"
 )
 
@@ -30,10 +29,10 @@ type Response struct {
 func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.int) *C.char {
 	var res Response
 	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
-	log.Println("get param data length:", cCharLength)
-	log.Println("get param privk:", privk)
-	log.Println("get param pubk :", pubk)
-	log.Println("get param data :", common.ToHex(godata))
+	//log.Println("get param data length:", cCharLength)
+	//log.Println("get param privk:", privk)
+	//log.Println("get param pubk :", pubk)
+	//log.Println("get param data :", common.ToHex(godata))
 	resdata, err := DecryptLoginPktSM2(godata, []byte(privk), []byte(pubk))
 	if err != nil {
 		res.Error = err.Error()
@@ -41,7 +40,7 @@ func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.in
 		res.Data = common.ToHex(resdata)
 	}
 	d, _ := json.Marshal(res)
-	log.Println("response:", string(d))
+	//log.Println("response:", string(d))
 	return C.CString(string(d))
 }
 
@@ -49,11 +48,11 @@ func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.in
 func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char, cCharLength C.int) *C.char {
 	var res Response
 	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
-	log.Println("get param data length:", cCharLength)
-	log.Println("get param username:", username)
-	log.Println("get param privk:", privk)
-	log.Println("get param pubk :", pubk)
-	log.Println("get param data :", common.ToHex(godata))
+	//log.Println("get param data length:", cCharLength)
+	//log.Println("get param username:", username)
+	//log.Println("get param privk:", privk)
+	//log.Println("get param pubk :", pubk)
+	//log.Println("get param data :", common.ToHex(godata))
 	resdata, err := EncryptLoginPktSM2(username, []byte(privk), []byte(pubk), godata)
 	if err != nil {
 		res.Error = err.Error()
@@ -61,7 +60,7 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 		res.Data = common.ToHex(resdata)
 	}
 	d, _ := json.Marshal(res)
-	log.Println("response:", string(d))
+	//log.Println("response:", string(d))
 	return C.CString(string(d))
 }
 
