@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/xueqianLu/ZtAApi/common"
 	"log"
+	"unsafe"
 )
 
 type EncryptLoginPktSM2Param struct {
@@ -26,9 +27,14 @@ type Response struct {
 }
 
 //export DecrytLoginPktSM2
-func DecrytLoginPktSM2(privk string, pubk string, data []byte) *C.char {
+func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.int) *C.char {
 	var res Response
-	resdata, err := DecryptLoginPktSM2([]byte(data), []byte(privk), []byte(pubk))
+	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
+	log.Println("get param data length:", cCharLength)
+	log.Println("get param privk:", privk)
+	log.Println("get param pubk :", pubk)
+	log.Println("get param data :", common.ToHex(godata))
+	resdata, err := DecryptLoginPktSM2(godata, []byte(privk), []byte(pubk))
 	if err != nil {
 		res.Error = err.Error()
 	} else {
@@ -40,9 +46,15 @@ func DecrytLoginPktSM2(privk string, pubk string, data []byte) *C.char {
 }
 
 //export EncrytLoginPktSM2
-func EncrytLoginPktSM2(username string, privk string, pubk string, data []byte) *C.char {
+func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char, cCharLength C.int) *C.char {
 	var res Response
-	resdata, err := EncryptLoginPktSM2(username, []byte(privk), []byte(pubk), data)
+	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
+	log.Println("get param data length:", cCharLength)
+	log.Println("get param username:", username)
+	log.Println("get param privk:", privk)
+	log.Println("get param pubk :", pubk)
+	log.Println("get param data :", common.ToHex(godata))
+	resdata, err := EncryptLoginPktSM2(username, []byte(privk), []byte(pubk), godata)
 	if err != nil {
 		res.Error = err.Error()
 	} else {

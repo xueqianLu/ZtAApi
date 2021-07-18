@@ -28,6 +28,15 @@ var (
 	ID_ErrSM2Signature = -6
 )
 
+type decpkt struct {
+	cmdtype    byte
+	checkval   [32]byte
+	useridx    [32]byte
+	deviceid   [32]byte
+	random     [32]byte
+	enc_length [2]byte
+}
+
 func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]byte, error) {
 	if len(data) < 96 {
 		return nil, ErrInvalidParam
@@ -42,14 +51,41 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 		log.Println("read certificate failed, err", err)
 		return nil, ErrParsePemFailed
 	}
-	r_userindx := data[:32]
-	r_random := data[32:64]
-	r_enc_length := data[64:66]
-	enc_length := int16(r_enc_length[0])<<8 | int16(r_enc_length[1])&0x00ff
-	r_encpac := data[66 : 66+enc_length]
-	r_sign := data[66+enc_length:]
+	var blength = 32
+	var offset = 0
+	ptype := data[0]
+	offset += 1
+	log.Println("ptype:", ptype)
 
-	sign_data := common.BytesCombine(r_userindx, r_random, r_enc_length, r_encpac)
+	r_checkval := data[offset : offset+blength]
+	offset += blength
+	log.Println("checkval:", common.ToHex(r_checkval))
+
+	r_userindx := data[offset : offset+blength]
+	offset += blength
+	log.Println("r_userindx:", common.ToHex(r_userindx))
+
+	r_deviceid := data[offset : offset+blength]
+	offset += blength
+	log.Println("r_deviceid:", common.ToHex(r_deviceid))
+
+	r_random := data[offset : offset+blength]
+	offset += blength
+	log.Println("r_random:", common.ToHex(r_random))
+
+	r_enc_length := data[offset : offset+2]
+	offset += 2
+
+	log.Printf("r_enc_length[0] = %x, r_enc_length[1] = %x\n", r_enc_length[0], r_enc_length[1])
+	enc_length := int16(r_enc_length[0])<<8 | int16(r_enc_length[1])&0x00ff
+	log.Println("enc_length = ", enc_length)
+	r_encpac := data[offset : offset+int(enc_length)]
+	offset += int(enc_length)
+
+	r_sign := data[offset:]
+	log.Println("r_signature ", common.ToHex(r_sign))
+
+	sign_data := data[:offset]
 
 	if common.SM2CertVerifySignature(user_cert, sign_data, r_sign) {
 		log.Println("Verify response signature succeed")
