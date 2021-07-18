@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	LocalEncKey = sm4.SM4Key("alocalconfigkey1")
+	LocalEncKey   = sm4.SM4Key("alocalconfigkey1")
+	ErrSM2Decrypt = errors.New("sm2 decrypt failed")
 )
 
 func GetSM2PubkeyFromCert(cert *sm2.Certificate) (*sm2.PublicKey, error) {
@@ -169,7 +170,11 @@ func SM2PrivDecrypt(priv *sm2.PrivateKey, encdata []byte) ([]byte, error) {
 	if priv == nil {
 		return nil, errors.New("SM2PrivDec nil privkey")
 	}
-	return priv.Decrypt(encdata)
+	d, e := priv.Decrypt(encdata)
+	if e != nil {
+		return nil, ErrSM2Decrypt
+	}
+	return d, nil
 }
 
 func SM2PrivSign(priv *sm2.PrivateKey, data []byte) ([]byte, error) {

@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -98,41 +99,34 @@ func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]by
 	if _, err := conn.Write(data); err != nil {
 		return nil, err
 	}
-	conn.SetReadDeadline(time.Now().Add(timeout))
-	msg := make([]byte, MaxReadBuffer)
 
-	rlen, err := conn.Read(msg)
-	if err != nil {
-		return nil, err
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ch := make(chan error, 1)
+	msg := make([]byte, MaxReadBuffer)
+	readLen := 0
+	go func() {
+		//log.Println("wait to read msg")
+		rlen, err := conn.Read(msg)
+		readLen = rlen
+		log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
+		ch <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		// request timeout
+		log.Println("request context timeout at ", time.Now().String())
+		return nil, ErrRequestTimeout
+	case err, _ := <-ch:
+		if err != nil {
+			return nil, err
+		} else {
+			log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
+			return msg[:readLen], nil
+		}
 	}
-	return msg[:rlen], nil
-	//
-	//ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	//defer cancel()
-	//
-	//ch := make(chan error, 1)
-	//readLen := 0
-	//go func() {
-	//	//log.Println("wait to read msg")
-	//	rlen, err := conn.Read(msg)
-	//	readLen = rlen
-	//	log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
-	//	ch <- err
-	//}()
-	//
-	//select {
-	//case <-ctx.Done():
-	//	// request timeout
-	//	log.Println("request context timeout at ", time.Now().String())
-	//	return nil, ErrRequestTimeout
-	//case err, _ := <-ch:
-	//	if err != nil {
-	//		return nil, err
-	//	} else {
-	//		log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
-	//		return msg[:readLen], nil
-	//	}
-	//}
 }
 
 func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
@@ -146,7 +140,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 
 	var response []byte
 	var reserr error
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		log.Println("send request times ", i)
 		conn, err := net.Dial("udp", serverAddr)
 		if err != nil {
@@ -154,7 +148,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 			return nil, err
 		}
 
-		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*2)
+		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*5)
 		conn.Close()
 		if reserr == ErrRequestTimeout {
 			continue
@@ -232,7 +226,8 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	var reqSliceOffset = info.SliceOffset + 1
 	for i := reqSliceOffset; i < info.SliceCount; i++ {
 		if certSlice, e := ClientReqCertSlice(local, i); e != nil {
-			return errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+			log.Println("request cert slice failed, e:", e.Error())
+			return e
 		} else {
 			certData += certSlice.SliceInfo
 		}
@@ -343,7 +338,8 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	var reqSliceOffset = login.SliceOffset + 1
 	for i := reqSliceOffset; i < login.SliceCount; i++ {
 		if configSlice, e := ClientReqSliceInfo(local, i); e != nil {
-			return nil, 1009, errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+			log.Println("request userconfig failed, e:", e.Error())
+			return nil, 1009, e
 		} else {
 			userConfig += configSlice.SliceInfo
 		}

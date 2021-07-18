@@ -1,0 +1,29 @@
+package common
+
+import (
+	"encoding/hex"
+	"fmt"
+	"github.com/tjfoc/gmsm/sm2"
+	"testing"
+)
+
+func TestSM2PrivDecrypt(t *testing.T) {
+	//encdata,_ := hex.DecodeString("308201d3022071d4353882e69ca6cbef9a12d031fd307730f896bb33830406e3fe5b4e4427e0022000c38ca3a901f83129e9a65462565d79800795160a5c8325e8bd96c51f8840560420aee7768093ce98a703a412086978b6bc0ad2fa962e15cbba72ef136816fbce6004820169036f8498d26f63e0264d6c66c490b5e473478dbbb0c16efeccffd451f4428d4a534b5c578c7f1b0e71e05f31ef57e76161364d5d8c066f70cfba0feee314872c522f1e388bc7efa1fd13a103b63d7901bc2f1015a23649c6d8ac5276d9973fc077808db8fe00f406199cf10e787bb769a2c7388cc4d49f1e5cded5e51388138c2f144651693fa7b6a4c7a786628cea66a458fda98f6dbfd439029b23218ba7a22288a875a512f927cf8c7dab18b0618bbde0b3bf8f1558221bdbff8c4dec7d987e5421e9ee2c85ebb8179ced7d9daa84e5864ca43c06186d61200a599a5bc2a8fc9f8c1d1a0e8269b722412a3d7f3e0393c3bda6b663dc2df76eca384ae63397aa297c8debd771e0cc3a36efa6edda41aa497f0c0eeeea80e7bf6cd541021a47ccf0694a316cc2f4b365a1dcc7ef404586c9c1ef8ae69309467cfbcc8046a1e9aa68c9cf1d265190ec0624c6492d819a8c5c7b5b936980e73bb1bd4a8904a7d639369a2f6f450285fd")
+	encdata, _ := hex.DecodeString("308201d302205ef2c4de5ae32b15581abbe7db6bc694c1863335053a564d3f6a721b10f0a41902203b44ba5741500ab348c1baf5534b2285a1d10ce7daace82ac7de674804ab13f0042041668ede08aeb8a3e052e81257b1a88b3360400f96926521eddb51e30bcfb3d7048201696642d75edc0c9469bbe11e8a7e73e257b25b8fe8261d433953a96633273aefcce8c0ebead8de7cf70ef7ab1dcc606621a2b3410d16046dfbba51187d2f2ef46ba577fbe2bb615934a228dede577f610f718f0bc3cc9a736ee70ad29fb816d3d339c42fc253bea8706264606009fc9cea463d098c650d61d08c8d1eef33b51a781b1330367c9c20d1df955bfb7bd7e468efa4fa39b0585229311119126fee134da16a681ef305c0fccdcba66baf12ca26490dc2af201796c6e669c08409e1af8cee05fc749176f7d6fdd71d2c663d3e21c9f8649ebfbd0a5c0c4247acfa04a197913efa54cbdeb51d030dbab62af76b0e34db67be00acf07ced1ace80afdaf2a029782467161da6ceb2df037d2ff9640b81ec6bc5d4b4a435f6653f6ea073d280f5f6992dd1b45bb8aca41c109227a477680c186dab36e539b886e6f1ef7c8e0129c43994f1b406ec397dce9fcdff66fc8c33c3aa8f8490e3c45edfd2f5bb552da17f0de6a1443d9886")
+	if pk, err := ReadEncSm2PrivateKey("privk.pem", nil); err == nil {
+		_, err = SM2PrivDecrypt(pk, encdata)
+		if err != nil {
+			fmt.Println("decrypt failed, err:", err)
+			t.Error("decrypt failed", err)
+		} else {
+			fmt.Println("decrypt success")
+			t.Log("decrypt success", err)
+		}
+		ok, e := sm2.WritePrivateKeytoPem("user.pem", pk, nil)
+		if e != nil || !ok {
+			fmt.Println("save privk to pem failed.")
+		} else {
+			fmt.Println("save privk to pem success.")
+		}
+	}
+}
