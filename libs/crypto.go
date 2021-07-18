@@ -101,6 +101,7 @@ func (u *Ucmd) Data() []byte {
 
 func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, data []byte) ([]byte, error) {
 	var err error
+	//	log.Println("in EncryptLoginPktSM2 privkdata", string(privkdata))
 	privk, err := common.SM2ReadPrivateKeyFromMem(privkdata)
 	if err != nil {
 		log.Println("read private key failed, err", err)

@@ -61,7 +61,7 @@ func EncrytLoginPktSM2(param string) string {
 	data := common.FromHex(p.Data)
 	pubk := []byte(p.Pubkdata)
 	privk := []byte(p.Privkdata)
-	resdata, err := EncryptLoginPktSM2(p.Username, data, privk, pubk)
+	resdata, err := EncryptLoginPktSM2(p.Username, privk, pubk, data)
 	if err != nil {
 		res.Error = err.Error()
 	} else {
