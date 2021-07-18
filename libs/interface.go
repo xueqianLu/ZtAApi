@@ -26,14 +26,15 @@ type Response struct {
 }
 
 //export DecrytLoginPktSM2
-func DecrytLoginPktSM2(param string) string {
+func DecrytLoginPktSM2(param string) *C.char {
 	var p DecrytLoginPktSM2Param
+	log.Println("got param:", param)
 	var res Response
 	if e := json.Unmarshal([]byte(param), &p); e != nil {
 		log.Printf("unmarshal param to DecrytLoginPktSM2Param failed, err:%s\n", e.Error())
 		res.Error = "unmarshal failed"
 		d, _ := json.Marshal(res)
-		return string(d)
+		return C.CString(string(d))
 	}
 	data := common.FromHex(p.Data)
 	pubk := []byte(p.Pubkdata)
@@ -45,18 +46,20 @@ func DecrytLoginPktSM2(param string) string {
 		res.Data = common.ToHex(resdata)
 	}
 	d, _ := json.Marshal(res)
-	return string(d)
+	log.Println("response:", string(d))
+	return C.CString(string(d))
 }
 
 //export EncrytLoginPktSM2
-func EncrytLoginPktSM2(param string) string {
+func EncrytLoginPktSM2(param string) *C.char {
 	var p EncryptLoginPktSM2Param
+	log.Println("got param:", param)
 	var res Response
 	if e := json.Unmarshal([]byte(param), &p); e != nil {
 		log.Printf("unmarshal param to EncryptLoginPktSM2Param failed, err:%s\n", e.Error())
 		res.Error = "unmarshal failed"
 		d, _ := json.Marshal(res)
-		return string(d)
+		return C.CString(string(d))
 	}
 	data := common.FromHex(p.Data)
 	pubk := []byte(p.Pubkdata)
@@ -68,7 +71,8 @@ func EncrytLoginPktSM2(param string) string {
 		res.Data = common.ToHex(resdata)
 	}
 	d, _ := json.Marshal(res)
-	return string(d)
+	log.Println("response:", string(d))
+	return C.CString(string(d))
 }
 
 func main() {}

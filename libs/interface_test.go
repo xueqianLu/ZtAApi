@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/xueqianLu/ZtAApi/common"
 	"io/ioutil"
+	"log"
 	"testing"
 )
 
