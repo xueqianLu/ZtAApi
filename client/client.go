@@ -140,7 +140,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 
 	var response []byte
 	var reserr error
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 1; i++ {
 		log.Println("send request times ", i)
 		conn, err := net.Dial("udp", serverAddr)
 		if err != nil {
@@ -187,17 +187,30 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 		return errors.New("have no scsr data")
 	}
 
-	cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
-	if e != nil {
-		log.Println("NewLoginCmd failed", "err", e.Error())
-		return e
+	for retry := 0; retry < 6; retry++ {
+		cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
+		if e != nil {
+			log.Println("NewLoginCmd failed", "err", e.Error())
+			return e
+		}
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
 	}
-	res, err = requestToServer(local, cmd)
-	if err != nil {
-		return err
-	}
-	// den
-	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+
 	if err != nil {
 		return err
 	}
@@ -294,27 +307,39 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		}
 		log.Println("exchange cert success, goto login")
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
 
-	local.User.DeviceId = sysinfo.DeviceId
-	cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
-	if cmd == nil || e != nil {
-		log.Println("NewLoginCmd failed", "err", e.Error())
-		return nil, 1003, e
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+
+		local.User.DeviceId = sysinfo.DeviceId
+		cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
+			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
+		if cmd == nil || e != nil {
+			log.Println("NewLoginCmd failed", "err", e.Error())
+			return nil, 1003, e
+		}
+
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			log.Println("request to server err:", err)
+			return nil, 1004, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, 1005, err
+		}
+		break
 	}
-
-	res, err = requestToServer(local, cmd)
 	if err != nil {
-		log.Println("request to server err:", err)
-		return nil, 1004, err
+		return nil, 1008, err
 	}
-	// den
-	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
-	if err != nil {
-		return nil, 1005, err
-	}
-
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
 		log.Println("decpac unmarshal to server response failed.")
@@ -421,14 +446,27 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	if err != nil {
 		return err
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, managerCert)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return err
+	var res, decPac []byte
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, managerCert)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
 	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return err
 	}
@@ -452,14 +490,27 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 	if err != nil {
 		return nil, err
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewReqUserHomeCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
+	var res, decPac []byte
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewReqUserHomeCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return nil, err
 	}
@@ -493,21 +544,33 @@ func ClientReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 		return nil, errors.New("have no scsr data")
 	}
 
-	cmd, e := NewNormalReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
-	if e != nil {
-		log.Println("NewReqCertSliceCmd failed", "err", e.Error())
-		return nil, e
-	}
-	res, err = requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
-	}
-	// den
-	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
-	if err != nil {
-		return nil, err
-	}
+	for retry := 0; retry < 6; retry++ {
+		cmd, e := NewNormalReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
+		if e != nil {
+			log.Println("NewReqCertSliceCmd failed", "err", e.Error())
+			return nil, e
+		}
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 
+		break
+	}
+	if err != nil {
+		return nil, err
+	}
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
 		log.Println("decpac unmarshal to server response failed.")
@@ -535,14 +598,27 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 	if err != nil {
 		return nil, err
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewReqUserInfoCmd(local.UserName, local.Password, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
+	var res, decPac []byte
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewReqUserInfoCmd(local.UserName, local.Password, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return nil, err
 	}
@@ -572,14 +648,27 @@ func ClientRegetVerifyCode(local *conf.StorageConfig) error {
 	if err != nil {
 		return err
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return err
+	var res, decPac []byte
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
 	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return err
 	}
@@ -607,17 +696,29 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 		return errors.New("have no scsr data")
 	}
 
-	cmd, e := NewAdminExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
-	if e != nil {
-		log.Println("NewLoginCmd failed", "err", e.Error())
-		return e
+	for retry := 0; retry < 6; retry++ {
+		cmd, e := NewAdminExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
+		if e != nil {
+			log.Println("NewLoginCmd failed", "err", e.Error())
+			return e
+		}
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
 	}
-	res, err = requestToServer(local, cmd)
-	if err != nil {
-		return err
-	}
-	// den
-	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
 	if err != nil {
 		return err
 	}
@@ -694,19 +795,30 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 		}
 		log.Println("exchange cert success, goto login")
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, false)
-	res, err = requestToServer(local, cmd)
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
+			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, false)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
 	if err != nil {
 		return nil, err
 	}
-	// den
-	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
-	if err != nil {
-		return nil, err
-	}
-
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
 		log.Println("decpac unmarshal to server response failed.")
@@ -749,15 +861,27 @@ func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResD
 	if needExchangeCert(local) {
 		return nil, errors.New("need exchange cert first")
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
-		local.User.Sm2Priv, managerCert, *sysinfo, "", true)
-	res, err = requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
+			local.User.Sm2Priv, managerCert, *sysinfo, "", true)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
-	// den
-	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return nil, err
 	}
@@ -789,14 +913,27 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 	if err != nil {
 		return err
 	}
-	managerCert := local.User.GetManagerCert(local.ServerAddr)
-	cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
-	res, err := requestToServer(local, cmd)
-	if err != nil {
-		return err
+	var res, decPac []byte
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		break
 	}
-	// den
-	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
 		return err
 	}
@@ -823,18 +960,29 @@ func AdminReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData
 	if csr == nil {
 		return nil, errors.New("have no scsr data")
 	}
-
-	cmd, e := NewAdminReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
-	if e != nil {
-		log.Println("NewAdminReqCertSliceCmd failed", "err", e.Error())
-		return nil, e
+	for retry := 0; retry < 6; retry++ {
+		cmd, e := NewAdminReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
+		if e != nil {
+			log.Println("NewAdminReqCertSliceCmd failed", "err", e.Error())
+			return nil, e
+		}
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
 	}
-	res, err = requestToServer(local, cmd)
-	if err != nil {
-		return nil, err
-	}
-	// den
-	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
 	if err != nil {
 		return nil, err
 	}

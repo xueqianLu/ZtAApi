@@ -22,10 +22,10 @@ const (
 	NormalUserReqHome         byte = 7 //普通用户获取home url
 	NormalUserRegetVerifyCode byte = 8 //普通用户获取用户配置信息
 
-	AdminExchangeCertMsg byte = 10 //管理员交换证书
-	AdminLoginMsg        byte = 11 //管理员登录
-	AdminReGetVerifyCode byte = 12 // 管理员重新获取验证码
-	AdminReqCertSliceCmd byte = 13 // 管理员获取证书分片信息
+	AdminExchangeCertMsg byte = 10                     //管理员交换证书
+	AdminLoginMsg        byte = 11                     //管理员登录
+	AdminReGetVerifyCode byte = 12                     // 管理员重新获取验证码
+	AdminReqCertSliceCmd byte = NormalUserReqCertSlice // 管理员获取证书分片信息
 )
 
 type Packet struct {
