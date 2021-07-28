@@ -393,7 +393,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 }
 
 func ClientLogout(local *conf.StorageConfig, force bool) error {
-	var res, decPac []byte
+	//var res, decPac []byte
 	var err error
 
 	// stop lifetime keeper routine.
@@ -408,29 +408,33 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 		}
 
 		log.Println("client logout, force =", force)
-		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.PublicKey, local.User.Sm2Priv, managerCert)
-		res, err = requestToServer(local, cmd)
-		log.Println("send to server logout cmd:", hex.EncodeToString(cmd.Data()))
-		if err != nil {
-			return err
+		for retry := 0; retry < 6; retry++ {
+			managerCert := local.User.GetManagerCert(local.ServerAddr)
+			cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.PublicKey, local.User.Sm2Priv, managerCert)
+			_, err = requestToServer(local, cmd)
+			if err == ErrRequestTimeout {
+				// if request timeout , resend.
+				continue
+			}
+			//if err != nil {
+			//	return err
+			//}
+			// den
+			//decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+			//if err != nil {
+			//	return err
+			//}
 		}
-		// den
-		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
-		if err != nil {
-			return err
-		}
-
-		head := &ServerResponse{}
-		if err = json.Unmarshal(decPac, &head); err != nil {
-			log.Println("decpac unmarshal to server response failed.")
-			return err
-		}
-		if head.Status != 1 {
-			msg, _ := common.Base64Decode(head.Msg)
-			err = errors.New(string(msg))
-			return err
-		}
+		//head := &ServerResponse{}
+		//if err = json.Unmarshal(decPac, &head); err != nil {
+		//	log.Println("decpac unmarshal to server response failed.")
+		//	return err
+		//}
+		//if head.Status != 1 {
+		//	msg, _ := common.Base64Decode(head.Msg)
+		//	err = errors.New(string(msg))
+		//	return err
+		//}
 	}
 	if local.User != nil {
 		conf.ClientUserConfigSave(local.User)
