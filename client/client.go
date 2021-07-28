@@ -397,7 +397,7 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 	var err error
 
 	// stop lifetime keeper routine.
-	if !force {
+	if true {
 		if local.User == nil {
 			return nil
 		}
