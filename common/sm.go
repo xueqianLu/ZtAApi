@@ -71,6 +71,29 @@ func SM2ReadCertificateRequestFromMem(data []byte) (*sm2.CertificateRequest, err
 	return sm2.ReadCertificateRequestFromMem(data)
 }
 
+func SM2CreateCertificateRequestToMem(username string, priv *sm2.PrivateKey) ([]byte, error) {
+	country := "CN"
+	province := "BJ"
+	city := "BJ"
+	company := "ZtA"
+	department := "ZtASecure"
+	email := username + "@163.com"
+	templateReq := sm2.CertificateRequest{
+		Subject: pkix.Name{
+			OrganizationalUnit: []string{department},
+			Country:            []string{country},
+			Organization:       []string{company},
+			Locality:           []string{city},
+			Province:           []string{province},
+			CommonName:         username,
+		},
+		EmailAddresses: []string{email},
+
+		SignatureAlgorithm: sm2.SM2WithSM3,
+	}
+	return sm2.CreateCertificateRequestToMem(&templateReq, priv)
+}
+
 func SM2CreateCertificateRequest(filename string, username string, priv *sm2.PrivateKey) ([]byte, error) {
 	country := "CN"
 	province := "BJ"

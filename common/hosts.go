@@ -3,7 +3,7 @@ package common
 import (
 	"bufio"
 	"fmt"
-	"github.com/Workiva/go-datastructures/set"
+	"gopkg.in/fatih/set.v0"
 	"io"
 	"log"
 	"os"
@@ -25,11 +25,20 @@ func NewDomainListWithItems(domains ...interface{}) *DomainList {
 }
 
 func (d *DomainList) String() string {
-	v := d.Flatten()
 	var ret = ""
-	for _, domain := range v {
-		ret = fmt.Sprintf("\t%s\t%s", domain.(string), ret)
-	}
+	d.Each(func(item interface{}) bool {
+		ret = fmt.Sprintf("\t%s\t%s", item.(string), ret)
+		return true
+	})
+	return ret
+}
+
+func (d *DomainList) Flatten() []string {
+	var ret = make([]string, 0)
+	d.Each(func(item interface{}) bool {
+		ret = append(ret, item.(string))
+		return true
+	})
 	return ret
 }
 
@@ -73,7 +82,7 @@ func ParseHostsFile(path string) map[string]*DomainList {
 					domainlist.Add(domain)
 				}
 			}
-			if domainlist == nil || domainlist.Len() == 0 {
+			if domainlist == nil || domainlist.Size() == 0 {
 				delete(hostinfo, ip)
 			}
 		}
@@ -92,14 +101,14 @@ func MergeHostMap(syshost, nhost map[string]*DomainList) map[string]*DomainList 
 			//log.Println("ip = ", ip, "domainlist = ", domainlist.String())
 			if dlist, ok := merged[ip]; ok {
 				for _, domain := range ndomains {
-					dlist.Add(domain.(string))
+					dlist.Add(domain)
 				}
 			} else {
 				for _, domain := range ndomains {
 					if dlist == nil {
-						dlist = NewDomainList(domain.(string))
+						dlist = NewDomainList(domain)
 					} else {
-						dlist.Add(domain.(string))
+						dlist.Add(domain)
 					}
 				}
 				merged[ip] = dlist
@@ -115,14 +124,14 @@ func MergeHostMap(syshost, nhost map[string]*DomainList) map[string]*DomainList 
 			//log.Println("ip = ", ip, "domainlist = ", domainlist.String())
 			if dlist := merged[ip]; dlist != nil {
 				for _, domain := range ndomains {
-					dlist.Add(domain.(string))
+					dlist.Add(domain)
 				}
 			} else {
 				for _, domain := range ndomains {
 					if dlist == nil {
-						dlist = NewDomainList(domain.(string))
+						dlist = NewDomainList(domain)
 					} else {
-						dlist.Add(domain.(string))
+						dlist.Add(domain)
 					}
 				}
 				merged[ip] = dlist
