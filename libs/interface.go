@@ -3,6 +3,7 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/xueqianLu/ZtAApi/common"
 	"unsafe"
 )
@@ -62,6 +63,17 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 	d, _ := json.Marshal(res)
 	//log.Println("response:", string(d))
 	return C.CString(string(d))
+}
+
+//export LightLogin
+func LightLogin(userName string, password string, server string,
+	sysinfo string, managerCert string) *C.char {
+	data, err := lightLogin(userName, password, server, sysinfo, managerCert)
+	if err != nil {
+		fmt.Errorf("light login failed, err:%s\n", err.Error())
+		return nil
+	}
+	return C.CString(string(data))
 }
 
 func main() {}
