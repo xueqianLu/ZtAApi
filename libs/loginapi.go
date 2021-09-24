@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"github.com/xueqianLu/ZtAApi/client"
 	"github.com/xueqianLu/ZtAApi/common"
 	"github.com/xueqianLu/ZtAApi/conf"
+	"io/ioutil"
 	"log"
 	"net"
 	"strconv"
@@ -25,34 +25,159 @@ const (
 )
 
 var (
-	managerCerts  = sync.Map{} //make(map[string]*sm2.Certificate) // server ==> manager certs
-	globalSysInfo = &common.SystemInfo{}
-	userConfigs   = sync.Map{} //make(map[string]*userInfo)
+	managerCertPath = "manager.pem"
+	csrPath         = "client.csr"
+	sm2privPath     = "priv.key"
+	userkeyPath     = "user.json"
+
+	managerCerts = sync.Map{} //make(map[string]*sm2.Certificate) // server ==> manager certs
+	userConfigs  = sync.Map{} //make(map[string]*userInfo)
+
+	globaConfig = &Config{}
+
+	configMux = sync.Mutex{}
 )
+
+type userkey struct {
+	Name string `json:"name"`
+	Priv string `json:"priv"`
+}
+
+type Alluserkey struct {
+	Alluser []userkey `json:"data"`
+}
+
+type Config struct {
+	managerCert *sm2.Certificate
+	Sm2Priv     *sm2.PrivateKey
+	Sm2Public   *sm2.PublicKey
+	csr         []byte
+	userPriv    sync.Map
+	sysinfo     *common.SystemInfo
+	reExchange  bool
+}
 
 type userInfo struct {
 	username    string
 	password    string
 	server      string
-	sysinfo     *common.SystemInfo
+	privk       *conf.Key
 	managerCert *sm2.Certificate
 	Sm2Priv     *sm2.PrivateKey
 	Sm2Public   *sm2.PublicKey
-	privk       *conf.Key
 	csr         []byte
+	sysinfo     *common.SystemInfo
+}
+
+func saveUserkey(config *Config) error {
+	var allUser Alluserkey
+	allUser.Alluser = make([]userkey, 0)
+	config.userPriv.Range(func(key, value interface{}) bool {
+		upriv := value.(*conf.Key)
+
+		uk := userkey{Name: key.(string), Priv: common.ToHex(upriv[:])}
+		allUser.Alluser = append(allUser.Alluser, uk)
+		return true
+	})
+	data, e := json.Marshal(allUser)
+	if e != nil {
+		return e
+	}
+	log.Println("save user key with data ", string(data))
+	ioutil.WriteFile(userkeyPath, data, 0755)
+	return nil
+}
+
+func loadOrGenerate(config *Config) error {
+	var reGenCSR = false
+
+	config.reExchange = false
+	// load user private key
+	{
+		var allUser Alluserkey
+		data, err := ioutil.ReadFile(userkeyPath)
+		if err == nil {
+			err = json.Unmarshal(data, &allUser)
+			if err == nil {
+				for _, d := range allUser.Alluser {
+					k := &conf.Key{}
+					uk := common.FromHex(d.Priv)
+					copy(k[:], uk)
+					config.userPriv.Store(d.Name, k)
+				}
+			}
+		}
+	}
+
+	// load privkey
+	privk, err := common.ReadEncSm2PrivateKey(sm2privPath, []byte("12345678"))
+	if err != nil {
+		// generate and save privatekey
+		privk, _ = common.SM2GenerateKey()
+		config.Sm2Priv = privk
+		common.WriteEncSm2Privatekey(sm2privPath, privk, []byte("12345678"))
+		reGenCSR = true
+		config.reExchange = true
+	} else {
+		config.Sm2Priv = privk
+	}
+	config.Sm2Public = &config.Sm2Priv.PublicKey
+
+	// load csr
+	config.csr, err = ioutil.ReadFile(csrPath)
+	if err != nil || reGenCSR {
+		csr, err := common.SM2CreateCertificateRequest(csrPath, "sdp", config.Sm2Priv)
+		if err != nil {
+			log.Println("create certificate request failed", "path = ", csrPath, "err = ", err)
+			return err
+		}
+		config.csr = csr
+		config.reExchange = true
+	}
+
+	if !config.reExchange {
+		if certdata, err := ioutil.ReadFile(managerCertPath); err != nil {
+			log.Println("read manager cert ", managerCertPath, " failed, err ", err.Error())
+		} else {
+			if config.managerCert, err = common.SM2ReadCertificateFromMem(certdata); err != nil {
+				log.Println("ReadCert from data failed, err ", err)
+			}
+		}
+		if config.managerCert == nil {
+			config.reExchange = true
+		}
+	}
+
+	return nil
 }
 
 func checkAndGetUserConfig(user string, password string, server string, ninfo *userInfo) error {
+	configMux.Lock()
+	if globaConfig.Sm2Priv == nil {
+		loadOrGenerate(globaConfig)
+	}
+	configMux.Unlock()
+
 	var err error
 	if data, exist := userConfigs.Load(user); !exist {
 		ninfo.username = user
 		ninfo.password = password
 		ninfo.server = server
-		ninfo.Sm2Priv, _ = common.SM2GenerateKey()
+		ninfo.Sm2Priv = globaConfig.Sm2Priv
 		ninfo.Sm2Public = &ninfo.Sm2Priv.PublicKey
-		ninfo.privk, _ = conf.NewPrivateKey()
-		ninfo.csr, _ = common.SM2CreateCertificateRequestToMem(user, ninfo.Sm2Priv)
+
+		ninfo.managerCert = globaConfig.managerCert
+		ninfo.csr = globaConfig.csr
 		userConfigs.Store(user, ninfo)
+		if k, ok := globaConfig.userPriv.Load(user); ok {
+			fmt.Println("user use exist privatekey")
+			ninfo.privk = k.(*conf.Key)
+		} else {
+			fmt.Println("user create new privatekey")
+			ninfo.privk, _ = conf.NewPrivateKey()
+			globaConfig.userPriv.Store(user, ninfo.privk)
+			saveUserkey(globaConfig)
+		}
 	} else {
 		info := data.(*userInfo)
 		ninfo.managerCert = info.managerCert
@@ -83,7 +208,7 @@ func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]by
 		//log.Println("wait to read msg")
 		rlen, err := conn.Read(msg)
 		readLen = rlen
-		log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
+		//log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
 		ch <- err
 	}()
 
@@ -96,7 +221,7 @@ func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]by
 		if err != nil {
 			return nil, err
 		} else {
-			log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
+			//log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
 			return msg[:readLen], nil
 		}
 	}
@@ -131,38 +256,44 @@ func requestToServer(server string, cmd client.Command) ([]byte, error) {
 }
 
 func lightLogin(userName string, password string, server string,
-	sysinfo string, managerCert string) ([]byte, error) {
+	sysinfo string) ([]byte, error) {
 
 	info := &userInfo{}
 	var err error
 	var res, decPac []byte
 	checkAndGetUserConfig(userName, password, server, info)
 
-	if globalSysInfo == nil {
+	if globaConfig.sysinfo == nil {
 		var nsysinfo = &common.SystemInfo{}
 		err = json.Unmarshal([]byte(sysinfo), &nsysinfo)
 		if err != nil {
-			log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfo)
+			LError.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfo)
 			return nil, err
 		}
-		info.sysinfo = nsysinfo
-		globalSysInfo = nsysinfo
+		globaConfig.sysinfo = nsysinfo
 	}
 
-	cert, err := sm2.ReadCertificateFromPem(managerCert)
-	if err != nil {
-		fmt.Errorf("read manager cert failed (%s)\n", err)
-		return nil, err
+	info.sysinfo = globaConfig.sysinfo
+
+	LInfo.Println("check need exchange cert.")
+	if globaConfig.reExchange {
+		LInfo.Printf("goto exchange cert\n")
+		if err := clientExchangeCert(info); err != nil {
+			LError.Printf(" exchange error :%s\n", err)
+		} else {
+			LInfo.Println("exchange cert passed")
+		}
 	}
-	if cert == nil && needExchangeCert(server) {
-		fmt.Printf("goto exchenage cert\n")
-		clientExchangeCert(info)
+
+	if info.managerCert == nil {
+		LError.Println("have no manager cert.")
+		return nil, errors.New("have no manager cert")
 	}
+
 	for i := 0; i < 6; i++ {
-		cmd, e := client.NewLoginCmd(info.username, info.password, info.privk.Public().String(), globalSysInfo.DeviceId,
-			info.Sm2Priv, info.managerCert, *info.sysinfo, "", "")
+		cmd, e := client.NewLoginCmd(info.username, info.password, info.privk.Public().String(), info.sysinfo.DeviceId, info.Sm2Priv, info.managerCert, *info.sysinfo, "", "")
 		if cmd == nil || e != nil {
-			log.Println("NewLoginCmd failed", "err", e.Error())
+			LError.Println("NewLoginCmd failed", "err", e.Error())
 			return nil, e
 		}
 
@@ -171,7 +302,7 @@ func lightLogin(userName string, password string, server string,
 			continue
 		}
 		if err != nil {
-			log.Println("request to server err:", err)
+			LError.Println("request to server err:", err)
 			return nil, err
 		}
 		// den
@@ -187,54 +318,24 @@ func lightLogin(userName string, password string, server string,
 	if err != nil {
 		return nil, err
 	}
-	head := &client.ServerResponse{}
-	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
-		return nil, err
-	}
-	// parse res
-	var login = &client.LoginResponse{}
-	if err = json.Unmarshal(decPac, &login); err != nil {
-		log.Println("decpac unmarshal to LoginResponse failed.")
-		return nil, err
-	} else {
-		d, _ := json.Marshal(login)
-		return d, nil
-	}
-	//
-	//var userConfig string
-	//userConfig += login.SliceInfo
-	//var reqSliceOffset = login.SliceOffset + 1
-	//for i := reqSliceOffset; i < login.SliceCount; i++ {
-	//	if configSlice, e := ClientReqSliceInfo(info, i); e != nil {
-	//		log.Println("request userconfig failed, e:", e.Error())
-	//		return nil, e
-	//	} else {
-	//		userConfig += configSlice.SliceInfo
-	//	}
-	//}
-	//allConfigInfo := &conf.AllConfigInfo{}
-	//allConfigInfo.VerifyType = login.VerifyType
-	//
-	//if len(userConfig) > 0 {
-	//	if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
-	//		return nil, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
-	//	} else {
-	//		log.Println("after decode base64:", decodedConfig)
-	//		if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
-	//			log.Println("user login, unmarshal to allConfigInfo failed.")
-	//			return nil, err
-	//		}
-	//	}
+	return decPac, nil
+	//head := &client.ServerResponse{}
+	//if err = json.Unmarshal(decPac, &head); err != nil {
+	//	LError.Println("decpac unmarshal to server response failed.")
+	//	return nil, err
 	//}
 	//if head.Status != 1 {
-	//	msg, _ := common.Base64Decode(head.Msg)
-	//	err = errors.New(string(msg))
+	//	return nil, errors.New(fmt.Sprintf("login error"))
 	//}
-	//d,_ := json.Marshal(allConfigInfo)
-	//
-	//return d, err
-
+	//// parse res
+	//var login = &client.LoginResponse{}
+	//if err = json.Unmarshal(decPac, &login); err != nil {
+	//	LError.Println("decpac unmarshal to LoginResponse failed.")
+	//	return nil, err
+	//} else {
+	//	d, _ := json.Marshal(login)
+	//	return d, nil
+	//}
 }
 
 func needExchangeCert(server string) bool {
@@ -324,6 +425,11 @@ func clientExchangeCert(info *userInfo) error {
 				return err
 			}
 		}
+	}
+	err = ioutil.WriteFile(managerCertPath, []byte(certs.ManagerCert), 0755)
+	if err != nil {
+		log.Println("Write certificate to file failed, err ", err, "filename", managerCertPath)
+		return err
 	}
 	cert, _ := common.SM2ReadCertificateFromMem([]byte(certs.ManagerCert))
 	managerCerts.Store(info.server, cert)

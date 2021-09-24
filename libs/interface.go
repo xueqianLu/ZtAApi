@@ -3,7 +3,6 @@ package main
 import "C"
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/xueqianLu/ZtAApi/common"
 	"unsafe"
 )
@@ -67,13 +66,21 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 
 //export LightLogin
 func LightLogin(userName string, password string, server string,
-	sysinfo string, managerCert string) *C.char {
-	data, err := lightLogin(userName, password, server, sysinfo, managerCert)
+	sysinfo string) *C.char {
+	LInfo.Printf("got login parameter userName(%s), password(%s), server(%s), sysinfo(%s)\n",
+		userName, password, server, sysinfo)
+	data, err := lightLogin(userName, password, server, sysinfo)
 	if err != nil {
-		fmt.Errorf("light login failed, err:%s\n", err.Error())
+		LError.Printf("light login failed, err:%s\n", err.Error())
 		return nil
 	}
+	LInfo.Printf("response %s\n", string(data))
 	return C.CString(string(data))
 }
 
-func main() {}
+func main() {
+	//var sysinfo = "{\"hostname\":\"hostname\",\"osname\":\"osname\",\"osversion\":\"osversion\",\"osvendor\":\"osvendor\",\"hwvendor\":\"hwvendor\",\"hwserial\":\"hwserial\",\"hwtype\":\"hwtype\",\"deviceid\":\"1fc01cc9b5845071570201403aff8b83fa4f0826463c4d54a545ff2d46d4cc4a\"}"
+	////var cert = "D:\\center.pem"
+	//res := LightLogin("luxueqian", "12345678", "47.93.84.115", sysinfo)
+	//LInfo.Println("res = ", res)
+}
