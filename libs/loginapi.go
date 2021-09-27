@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -25,9 +26,11 @@ const (
 )
 
 var (
+	configPath      = "config"
 	managerCertPath = "manager.pem"
 	csrPath         = "client.csr"
 	sm2privPath     = "priv.key"
+	certsInfo       = "certs.json"
 	userkeyPath     = "user.json"
 
 	managerCerts = sync.Map{} //make(map[string]*sm2.Certificate) // server ==> manager certs
@@ -47,14 +50,21 @@ type Alluserkey struct {
 	Alluser []userkey `json:"data"`
 }
 
+type CertInfo struct {
+	Server        string   `json:"server"`
+	Path          string   `json:"path"`
+	ExchangedUser []string `json:"exchanged-user"`
+	Cert          *sm2.Certificate
+}
+
 type Config struct {
-	managerCert *sm2.Certificate
-	Sm2Priv     *sm2.PrivateKey
-	Sm2Public   *sm2.PublicKey
-	csr         []byte
-	userPriv    sync.Map
-	sysinfo     *common.SystemInfo
-	reExchange  bool
+	CertsInfo map[string]*CertInfo
+	Sm2Priv   *sm2.PrivateKey
+	Sm2Public *sm2.PublicKey
+	csr       []byte
+	userPriv  sync.Map
+	sysinfo   *common.SystemInfo
+	//reExchange  bool
 }
 
 type userInfo struct {
@@ -62,11 +72,68 @@ type userInfo struct {
 	password    string
 	server      string
 	privk       *conf.Key
-	managerCert *sm2.Certificate
+	managerCert map[string]*sm2.Certificate
 	Sm2Priv     *sm2.PrivateKey
 	Sm2Public   *sm2.PublicKey
 	csr         []byte
 	sysinfo     *common.SystemInfo
+}
+
+func GetManagerCertPath() string {
+	return filepath.Join(configPath, managerCertPath)
+}
+func GetCSRPath() string {
+	return filepath.Join(configPath, csrPath)
+}
+func GetSMPrivPath() string {
+	return filepath.Join(configPath, sm2privPath)
+}
+func GetUserKeyPath() string {
+	return filepath.Join(configPath, userkeyPath)
+}
+func GetCertsInfoPath() string {
+	return filepath.Join(configPath, certsInfo)
+}
+
+func loadCertsInfo(config *Config) error {
+	file := GetCertsInfoPath()
+	var infos []CertInfo
+	data, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, &infos)
+	if err != nil {
+		LError.Println("unmarshal cert info failed, err:", err)
+		return err
+	}
+	for _, info := range infos {
+		if certdata, err := ioutil.ReadFile(info.Path); err != nil {
+			log.Println("read manager cert ", info.Path, " failed, err ", err.Error())
+		} else {
+			if info.Cert, err = common.SM2ReadCertificateFromMem(certdata); err != nil {
+				log.Println("ReadCert from data failed, err ", err)
+			}
+		}
+		if info.Cert != nil {
+			config.CertsInfo[info.Server] = &CertInfo{
+				Server:        info.Server,
+				Path:          info.Path,
+				ExchangedUser: info.ExchangedUser,
+				Cert:          info.Cert,
+			}
+		}
+	}
+	return nil
+}
+
+func saveCertInfo(config *Config) error {
+	file := GetCertsInfoPath()
+	data, err := json.Marshal(config.CertsInfo)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(file, data, 0755)
 }
 
 func saveUserkey(config *Config) error {
@@ -84,18 +151,17 @@ func saveUserkey(config *Config) error {
 		return e
 	}
 	log.Println("save user key with data ", string(data))
-	ioutil.WriteFile(userkeyPath, data, 0755)
+	ioutil.WriteFile(GetUserKeyPath(), data, 0755)
 	return nil
 }
 
 func loadOrGenerate(config *Config) error {
 	var reGenCSR = false
 
-	config.reExchange = false
 	// load user private key
 	{
 		var allUser Alluserkey
-		data, err := ioutil.ReadFile(userkeyPath)
+		data, err := ioutil.ReadFile(GetUserKeyPath())
 		if err == nil {
 			err = json.Unmarshal(data, &allUser)
 			if err == nil {
@@ -110,25 +176,26 @@ func loadOrGenerate(config *Config) error {
 	}
 
 	// load privkey
-	privk, err := common.ReadEncSm2PrivateKey(sm2privPath, []byte("12345678"))
+	privk, err := common.ReadEncSm2PrivateKey(GetSMPrivPath(), []byte("12345678"))
 	if err != nil {
 		// generate and save privatekey
 		privk, _ = common.SM2GenerateKey()
 		config.Sm2Priv = privk
-		common.WriteEncSm2Privatekey(sm2privPath, privk, []byte("12345678"))
+		common.WriteEncSm2Privatekey(GetSMPrivPath(), privk, []byte("12345678"))
 		reGenCSR = true
-		config.reExchange = true
 	} else {
 		config.Sm2Priv = privk
 	}
 	config.Sm2Public = &config.Sm2Priv.PublicKey
 
+	loadCertsInfo(config)
+
 	// load csr
-	config.csr, err = ioutil.ReadFile(csrPath)
+	config.csr, err = ioutil.ReadFile(GetCSRPath())
 	if err != nil || reGenCSR {
-		csr, err := common.SM2CreateCertificateRequest(csrPath, "sdp", config.Sm2Priv)
+		csr, err := common.SM2CreateCertificateRequest(GetCSRPath(), "sdp", config.Sm2Priv)
 		if err != nil {
-			log.Println("create certificate request failed", "path = ", csrPath, "err = ", err)
+			log.Println("create certificate request failed", "path = ", GetCSRPath(), "err = ", err)
 			return err
 		}
 		config.csr = csr
@@ -136,8 +203,8 @@ func loadOrGenerate(config *Config) error {
 	}
 
 	if !config.reExchange {
-		if certdata, err := ioutil.ReadFile(managerCertPath); err != nil {
-			log.Println("read manager cert ", managerCertPath, " failed, err ", err.Error())
+		if certdata, err := ioutil.ReadFile(GetManagerCertPath()); err != nil {
+			log.Println("read manager cert ", GetManagerCertPath(), " failed, err ", err.Error())
 		} else {
 			if config.managerCert, err = common.SM2ReadCertificateFromMem(certdata); err != nil {
 				log.Println("ReadCert from data failed, err ", err)
@@ -181,8 +248,8 @@ func checkAndGetUserConfig(user string, password string, server string, ninfo *u
 	} else {
 		info := data.(*userInfo)
 		ninfo.managerCert = info.managerCert
-		ninfo.password = info.password
-		ninfo.server = info.server
+		ninfo.password = password
+		ninfo.server = server
 		ninfo.csr = info.csr
 		ninfo.privk = info.privk
 		ninfo.Sm2Priv = info.Sm2Priv
@@ -426,9 +493,9 @@ func clientExchangeCert(info *userInfo) error {
 			}
 		}
 	}
-	err = ioutil.WriteFile(managerCertPath, []byte(certs.ManagerCert), 0755)
+	err = ioutil.WriteFile(GetManagerCertPath(), []byte(certs.ManagerCert), 0755)
 	if err != nil {
-		log.Println("Write certificate to file failed, err ", err, "filename", managerCertPath)
+		log.Println("Write certificate to file failed, err ", err, "filename", GetManagerCertPath())
 		return err
 	}
 	cert, _ := common.SM2ReadCertificateFromMem([]byte(certs.ManagerCert))
