@@ -79,8 +79,8 @@ func LightLogin(userName string, password string, server string,
 }
 
 func main() {
-	//var sysinfo = "{\"hostname\":\"hostname\",\"osname\":\"osname\",\"osversion\":\"osversion\",\"osvendor\":\"osvendor\",\"hwvendor\":\"hwvendor\",\"hwserial\":\"hwserial\",\"hwtype\":\"hwtype\",\"deviceid\":\"1fc01cc9b5845071570201403aff8b83fa4f0826463c4d54a545ff2d46d4cc4a\"}"
-	////var cert = "D:\\center.pem"
-	//res := LightLogin("luxueqian", "12345678", "47.93.84.115", sysinfo)
-	//LInfo.Println("res = ", res)
+	var sysinfo = "{\"hostname\":\"hostname\",\"osname\":\"osname\",\"osversion\":\"osversion\",\"osvendor\":\"osvendor\",\"hwvendor\":\"hwvendor\",\"hwserial\":\"hwserial\",\"hwtype\":\"hwtype\",\"deviceid\":\"1fc01cc9b5845071570201403aff8b83fa4f0826463c4d54a545ff2d46d4cc4a\"}"
+	//var cert = "D:\\center.pem"
+	res := LightLogin("luxueqian", "12345678", "47.93.84.115", sysinfo)
+	LInfo.Println("res = ", res)
 }
