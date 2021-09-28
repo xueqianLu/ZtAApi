@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -63,7 +64,6 @@ type Config struct {
 	csr       []byte
 	userPriv  sync.Map
 	sysinfo   *common.SystemInfo
-	//reExchange  bool
 }
 
 type userInfo struct {
@@ -78,20 +78,24 @@ type userInfo struct {
 	sysinfo     *common.SystemInfo
 }
 
+func GetConfigPath() string {
+	return configPath
+}
+
 func GetManagerCertPath(server string) string {
-	return filepath.Join(configPath, fmt.Sprintf("%s-%s", server, managerCertPath))
+	return filepath.Join(GetConfigPath(), fmt.Sprintf("%s-%s", server, managerCertPath))
 }
 func GetCSRPath() string {
-	return filepath.Join(configPath, csrPath)
+	return filepath.Join(GetConfigPath(), csrPath)
 }
 func GetSMPrivPath() string {
-	return filepath.Join(configPath, sm2privPath)
+	return filepath.Join(GetConfigPath(), sm2privPath)
 }
 func GetUserKeyPath() string {
-	return filepath.Join(configPath, userkeyPath)
+	return filepath.Join(GetConfigPath(), userkeyPath)
 }
 func GetCertsInfoPath() string {
-	return filepath.Join(configPath, certsInfo)
+	return filepath.Join(GetConfigPath(), certsInfo)
 }
 
 func loadCertsInfo(config *Config) error {
@@ -197,6 +201,10 @@ func saveUserkey(config *Config) error {
 func loadOrGenerate(config *Config) error {
 	var reGenCSR = false
 	var reExchange = false
+	err := os.MkdirAll(GetConfigPath(), os.ModeDir|0700)
+	if err != nil {
+		return err
+	}
 
 	// load user private key
 	{
