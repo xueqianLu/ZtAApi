@@ -152,7 +152,19 @@ func addCertInfo(server, user string, cert *sm2.Certificate) {
 
 func saveCertInfo(config *Config) error {
 	file := GetCertsInfoPath()
-	data, err := json.Marshal(config.CertsInfo)
+	var allInfo []CertInfo
+	config.CertsInfo.Range(func(key, value interface{}) bool {
+		v := value.(*CertInfo)
+		c := CertInfo{
+			Server:        v.Server,
+			Path:          v.Path,
+			ExchangedUser: v.ExchangedUser,
+		}
+		allInfo = append(allInfo, c)
+		return true
+	})
+	data, err := json.Marshal(allInfo)
+
 	if err != nil {
 		return err
 	}
@@ -391,7 +403,7 @@ func lightLogin(userName string, password string, server string,
 		}
 	}
 
-	if info.managerCert == nil {
+	if info.managerCert[server] == nil {
 		LError.Println("have no manager cert.")
 		return nil, errors.New("have no manager cert")
 	}
