@@ -1,10 +1,15 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/pem"
 	"errors"
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
 	"log"
+	"math/big"
+	"os"
+	"time"
 )
 
 var (
@@ -168,4 +173,107 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 		return nil, ErrSM2Signature
 	}
 	return cmd.Data(), nil
+}
+
+func ValidateCSRFromPem(csr_path string, ca_path string, ca_pri string,
+	duration int, out_crt string) error {
+	// load CA key pair
+	//      public key
+	caCRT, err := sm2.ReadCertificateFromPem(ca_path)
+	if err != nil {
+		return err
+	}
+
+	//      private key
+	caPrivateKey, err := sm2.ReadPrivateKeyFromPem(ca_pri, nil) //[]byte("123456"))
+	if err != nil {
+		return err
+	}
+
+	// load client certificate request
+	clientCSR, err := sm2.ReadCertificateRequestFromPem(csr_path)
+	if err != nil {
+		return err
+	}
+
+	// create client certificate template
+	clientCRTTemplate := sm2.Certificate{
+		Signature:          clientCSR.Signature,
+		SignatureAlgorithm: clientCSR.SignatureAlgorithm,
+
+		PublicKeyAlgorithm: clientCSR.PublicKeyAlgorithm,
+		PublicKey:          clientCSR.PublicKey,
+
+		SerialNumber: big.NewInt(2),
+		Issuer:       caCRT.Subject,
+		Subject:      clientCSR.Subject,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Duration(duration) * 24 * time.Hour),
+		KeyUsage:     sm2.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []sm2.ExtKeyUsage{sm2.ExtKeyUsageClientAuth},
+	}
+
+	// create client certificate from template and CA public key
+	clientCRTRaw, err := sm2.CreateCertificate(rand.Reader, &clientCRTTemplate, caCRT, clientCSR.PublicKey, caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// save the certificate
+	clientCRTFile, err := os.Create(out_crt)
+	if err != nil {
+		return err
+	}
+	pem.Encode(clientCRTFile, &pem.Block{Type: "CERTIFICATE", Bytes: clientCRTRaw})
+	clientCRTFile.Close()
+
+	return nil
+}
+
+func ValidateCSRFromMem(csr string, ca string, ca_pri string,
+	duration int) (string, error) {
+	// load CA key pair
+	//      public key
+	caCRT, err := sm2.ReadCertificateFromMem([]byte(ca))
+	if err != nil {
+		return "", err
+	}
+
+	//      private key
+	caPrivateKey, err := sm2.ReadPrivateKeyFromMem([]byte(ca_pri), nil)
+	if err != nil {
+		return "", err
+	}
+
+	// load client certificate request
+	clientCSR, err := sm2.ReadCertificateRequestFromMem([]byte(csr))
+	if err != nil {
+		return "", err
+	}
+
+	// create client certificate template
+	clientCRTTemplate := sm2.Certificate{
+		Signature:          clientCSR.Signature,
+		SignatureAlgorithm: clientCSR.SignatureAlgorithm,
+
+		PublicKeyAlgorithm: clientCSR.PublicKeyAlgorithm,
+		PublicKey:          clientCSR.PublicKey,
+
+		SerialNumber: big.NewInt(2),
+		Issuer:       caCRT.Subject,
+		Subject:      clientCSR.Subject,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Duration(duration) * 24 * time.Hour),
+		KeyUsage:     sm2.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []sm2.ExtKeyUsage{sm2.ExtKeyUsageClientAuth},
+	}
+
+	// create client certificate from template and CA public key
+	clientCRTRaw, err := sm2.CreateCertificate(rand.Reader, &clientCRTTemplate, caCRT, clientCSR.PublicKey, caPrivateKey)
+	if err != nil {
+		return "", err
+	}
+
+	// save the certificate
+	return string(clientCRTRaw), nil
 }
