@@ -175,6 +175,12 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 	return cmd.Data(), nil
 }
 
+func genSerialNumber() *big.Int {
+	var max, _ = new(big.Int).SetString("1000000000000000000000000", 10)
+	r, _ := rand.Int(rand.Reader, max)
+	return r
+}
+
 func ValidateCSRFromPem(csr_path string, ca_path string, ca_pri string,
 	duration int, out_crt string) error {
 	// load CA key pair
@@ -204,7 +210,7 @@ func ValidateCSRFromPem(csr_path string, ca_path string, ca_pri string,
 		PublicKeyAlgorithm: clientCSR.PublicKeyAlgorithm,
 		PublicKey:          clientCSR.PublicKey,
 
-		SerialNumber: big.NewInt(2),
+		SerialNumber: genSerialNumber(),
 		Issuer:       caCRT.Subject,
 		Subject:      clientCSR.Subject,
 		NotBefore:    time.Now(),
@@ -259,7 +265,7 @@ func ValidateCSRFromMem(csr string, ca string, ca_pri string,
 		PublicKeyAlgorithm: clientCSR.PublicKeyAlgorithm,
 		PublicKey:          clientCSR.PublicKey,
 
-		SerialNumber: big.NewInt(2),
+		SerialNumber: genSerialNumber(),
 		Issuer:       caCRT.Subject,
 		Subject:      clientCSR.Subject,
 		NotBefore:    time.Now(),

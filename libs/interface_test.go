@@ -63,7 +63,7 @@ import (
 func TestCsrToCrt(t *testing.T) {
 	var capath = "testcrt/ca.crt"
 	var capri = "testcrt/ca.key"
-	var csr = "testcrt/gateway_pubkey_sm2.req"
+	var csr = "testcrt/gateway.req"
 	var out = "testcrt/gateway.crt"
 	ValidateCSRFromPem(csr, capath, capri, 365, out)
 }
