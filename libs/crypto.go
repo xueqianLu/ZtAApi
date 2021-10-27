@@ -85,21 +85,21 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	r_enc_length := data[offset : offset+2]
 	offset += 2
 
-	log.Printf("r_enc_length[0] = %x, r_enc_length[1] = %x\n", r_enc_length[0], r_enc_length[1])
+	//log.Printf("r_enc_length[0] = %x, r_enc_length[1] = %x\n", r_enc_length[0], r_enc_length[1])
 	enc_length := int16(r_enc_length[0])<<8 | int16(r_enc_length[1])&0x00ff
-	log.Println("enc_length = ", enc_length)
+	//log.Println("enc_length = ", enc_length)
 	r_encpac := data[offset : offset+int(enc_length)]
 	offset += int(enc_length)
 
 	r_sign := data[offset:]
-	log.Println("r_signature ", common.ToHex(r_sign))
+	//log.Println("r_signature ", common.ToHex(r_sign))
 
 	sign_data := data[:offset]
 
 	if common.SM2CertVerifySignature(user_cert, sign_data, r_sign) {
-		log.Println("Verify response signature succeed")
+		//log.Println("Verify response signature succeed")
 	} else {
-		log.Println("Verify response signature failed")
+		//log.Println("Verify response signature failed")
 		return nil, ErrVerifySignature
 	}
 	//log.Println("got signature 0x", hex.EncodeToString(r_sign))
@@ -149,12 +149,12 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 	//	log.Println("in EncryptLoginPktSM2 privkdata", string(privkdata))
 	privk, err := common.SM2ReadPrivateKeyFromMem(privkdata)
 	if err != nil {
-		log.Println("read private key failed, err", err)
+		//log.Println("read private key failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 	user_cert, err := common.SM2ReadCertificateFromMem(userCertData)
 	if err != nil {
-		log.Println("read certificate failed, err", err)
+		//log.Println("read certificate failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 
@@ -164,7 +164,7 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 
 	cmd.EncPacket, err = common.SM2CertEncrypt(user_cert, data)
 	if err != nil {
-		log.Println("cert encrypt failed, err ", err)
+		//log.Println("cert encrypt failed, err ", err)
 		return nil, ErrSM2CertEncrypt
 	}
 
@@ -279,7 +279,8 @@ func ValidateCSRFromMem(csr string, ca string, ca_pri string,
 	if err != nil {
 		return "", err
 	}
+	d := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientCRTRaw})
 
 	// save the certificate
-	return string(clientCRTRaw), nil
+	return string(d), nil
 }

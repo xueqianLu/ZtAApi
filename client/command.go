@@ -103,22 +103,12 @@ func NewUserCommand(username string, deviceid string, privk *sm2.PrivateKey, man
 		return nil
 	}
 
-	{
-		data := []byte("12345678901234567890")
-		encd, e := SM2CertEncrypt(manager_cert, data)
-		if e != nil {
-			log.Println("SM2CertEncrypt failed, err=", err)
-		} else {
-			log.Println("encdata = ", hex.EncodeToString(encd), "data=", string(data))
-		}
-	}
-
 	if err = cmd.GenSignature(privk); err != nil {
 		log.Println("gensignature failed,", err)
 		return nil
 	}
 
-	log.Printf("NewUserCommand %v\n", cmd)
+	//log.Printf("NewUserCommand %v\n", cmd)
 	return cmd
 }
 
@@ -128,8 +118,8 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
 		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: secondVerify}
-	log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
-	log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
+	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
+	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
 		return nil, errors.New("invalid param")
 	}
