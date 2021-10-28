@@ -14,8 +14,11 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,27 +37,28 @@ var (
 	certsInfo       = "certs.json"
 	userkeyPath     = "user.json"
 
+	newUserCount = int32(0)
+
+	gUserPriv, _ = conf.NewPrivateKey()
+
 	userConfigs   = make(map[string]*userInfo, 100000)
 	userConfigMux = sync.Mutex{}
 
-	globaConfig = &Config{CertsInfo: make(map[string]*CertInfo, 10000), userPriv: make(map[string]*conf.Key, 10000)}
+	globaConfig = &Config{CertsInfo: make(map[string]*CertInfo, 10)}
 
 	configMux = sync.Mutex{}
 )
 
-type userkey struct {
-	Name string `json:"name"`
-	Priv string `json:"priv"`
-}
-
-type Alluserkey struct {
-	Alluser []userkey `json:"data"`
-}
+//
+//type userinfo struct {
+//	Name string `json:"name"`
+//	Pubk string `json:"public"`
+//}
 
 type CertInfo struct {
-	Server        string   `json:"server"`
-	Path          string   `json:"path"`
-	ExchangedUser []string `json:"exchanged-user"`
+	Server        string `json:"server"`
+	Path          string `json:"path"`
+	ExchangedUser string `json:"exchanged-user"`
 	Cert          *sm2.Certificate
 }
 
@@ -63,7 +67,6 @@ type Config struct {
 	Sm2Priv   *sm2.PrivateKey
 	Sm2Public *sm2.PublicKey
 	csr       []byte
-	userPriv  map[string]*conf.Key //sync.Map
 	sysinfo   *common.SystemInfo
 	mux       sync.Mutex
 }
@@ -92,35 +95,11 @@ func (g *Config) RangeCert(f func(k, v interface{}) bool) {
 	}
 }
 
-func (g *Config) GetPriv(user string) (priv *conf.Key, exist bool) {
-	g.mux.Lock()
-	defer g.mux.Unlock()
-	priv, exist = g.userPriv[user]
-	return
-}
-
-func (g *Config) SavePriv(user string, priv *conf.Key) {
-	g.mux.Lock()
-	defer g.mux.Unlock()
-	g.userPriv[user] = priv
-}
-
-func (g *Config) RangePriv(f func(k, v interface{}) bool) {
-	g.mux.Lock()
-	defer g.mux.Unlock()
-	for k, v := range g.userPriv {
-		c := f(k, v)
-		if !c {
-			break
-		}
-	}
-}
-
 type userInfo struct {
 	username    string
 	password    string
 	server      string
-	privk       *conf.Key
+	public      string
 	managerCert map[string]*sm2.Certificate
 	Sm2Priv     *sm2.PrivateKey
 	Sm2Public   *sm2.PublicKey
@@ -146,6 +125,33 @@ func GetUserKeyPath() string {
 }
 func GetCertsInfoPath() string {
 	return filepath.Join(GetConfigPath(), certsInfo)
+}
+
+func GetUserKey(user string) string {
+	return gUserPriv.Public().String()
+	//filename := filepath.Join(GetConfigPath(), fmt.Sprintf("key-%s.json", user))
+	//var key userkey
+	//var genKey bool
+	//
+	//if data, err := ioutil.ReadFile(filename); err != nil {
+	//	genKey = true
+	//} else {
+	//	err = json.Unmarshal(data, &key)
+	//	if err != nil {
+	//		genKey = true
+	//	}
+	//}
+	//
+	//if genKey {
+	//	k, _ := conf.NewPrivateKey()
+	//	key.Pubk = k.Public().String()
+	//	key.Name = user
+	//
+	//	if data, err := json.Marshal(key); err == nil {
+	//		ioutil.WriteFile(filename, data, 0755)
+	//	}
+	//}
+	//return key
 }
 
 func loadCertsInfo(config *Config) error {
@@ -182,22 +188,29 @@ func loadCertsInfo(config *Config) error {
 }
 
 func addCertInfo(server, user string, cert *sm2.Certificate) {
+	configMux.Lock()
+	defer configMux.Unlock()
 
 	config := globaConfig
+	atomic.AddInt32(&newUserCount, 1)
 	if info, exist := config.GetCert(server); !exist {
 		ninfo := &CertInfo{
 			Server:        server,
 			Path:          GetManagerCertPath(server),
-			ExchangedUser: make([]string, 0),
+			ExchangedUser: "",
 			Cert:          cert,
 		}
-		ninfo.ExchangedUser = append(ninfo.ExchangedUser, user)
+		ninfo.ExchangedUser = ninfo.ExchangedUser + user + ","
 		config.SaveCert(server, ninfo)
 	} else {
 		//ninfo := info.(*CertInfo)
-		info.ExchangedUser = append(info.ExchangedUser, user)
+		info.ExchangedUser = info.ExchangedUser + user + ","
 	}
-	saveCertInfo(config)
+
+	if newUserCount%100 == 0 {
+		LInfo.Println("save cert info at count = ", newUserCount)
+		saveCertInfo(config)
+	}
 }
 
 func saveCertInfo(config *Config) error {
@@ -213,6 +226,7 @@ func saveCertInfo(config *Config) error {
 		allInfo = append(allInfo, c)
 		return true
 	})
+	runtime.KeepAlive(allInfo)
 	data, err := json.Marshal(allInfo)
 
 	if err != nil {
@@ -223,7 +237,8 @@ func saveCertInfo(config *Config) error {
 
 func userHaveCert(config *Config, server, username string) bool {
 	if info, exist := config.GetCert(server); exist {
-		for _, name := range info.ExchangedUser {
+		users := strings.Split(info.ExchangedUser, ",")
+		for _, name := range users {
 			if name == username {
 				return true
 			}
@@ -239,48 +254,12 @@ func getCert(config *Config, server string) *sm2.Certificate {
 	return nil
 }
 
-func saveUserkey(config *Config) error {
-	var allUser Alluserkey
-	allUser.Alluser = make([]userkey, 0)
-	config.RangePriv(func(key, value interface{}) bool {
-		upriv := value.(*conf.Key)
-
-		uk := userkey{Name: key.(string), Priv: common.ToHex(upriv[:])}
-		allUser.Alluser = append(allUser.Alluser, uk)
-		return true
-	})
-	data, e := json.Marshal(allUser)
-	if e != nil {
-		return e
-	}
-	//log.Println("save user key with data ", string(data))
-	ioutil.WriteFile(GetUserKeyPath(), data, 0755)
-	return nil
-}
-
 func loadOrGenerate(config *Config) error {
 	var reGenCSR = false
 	var reExchange = false
 	err := os.MkdirAll(GetConfigPath(), os.ModeDir|0700)
 	if err != nil {
 		return err
-	}
-
-	// load user private key
-	{
-		var allUser Alluserkey
-		data, err := ioutil.ReadFile(GetUserKeyPath())
-		if err == nil {
-			err = json.Unmarshal(data, &allUser)
-			if err == nil {
-				for _, d := range allUser.Alluser {
-					k := &conf.Key{}
-					uk := common.FromHex(d.Priv)
-					copy(k[:], uk)
-					config.SavePriv(d.Name, k)
-				}
-			}
-		}
 	}
 
 	// load privkey
@@ -338,15 +317,7 @@ func checkAndGetUserConfig(user string, password string, server string, ninfo *u
 		ninfo.Sm2Public = &ninfo.Sm2Priv.PublicKey
 		ninfo.csr = globaConfig.csr
 		userConfigs[user] = ninfo
-		if k, ok := globaConfig.GetPriv(user); ok {
-			//fmt.Println("user use exist privatekey")
-			ninfo.privk = k
-		} else {
-			//fmt.Println("user create new privatekey")
-			ninfo.privk, _ = conf.NewPrivateKey()
-			globaConfig.SavePriv(user, ninfo.privk)
-			saveUserkey(globaConfig)
-		}
+		ninfo.public = GetUserKey(user)
 	} else {
 		//info := data.(*userInfo)
 		info := data
@@ -354,7 +325,7 @@ func checkAndGetUserConfig(user string, password string, server string, ninfo *u
 		ninfo.password = password
 		ninfo.server = server
 		ninfo.csr = info.csr
-		ninfo.privk = info.privk
+		ninfo.public = info.public
 		ninfo.Sm2Priv = info.Sm2Priv
 		ninfo.Sm2Public = info.Sm2Public
 		ninfo.username = info.username
@@ -461,7 +432,7 @@ func lightLogin(userName string, password string, server string,
 	}
 
 	for i := 0; i < 6; i++ {
-		cmd, e := client.NewLoginCmd(info.username, info.password, info.privk.Public().String(), info.sysinfo.DeviceId, info.Sm2Priv, info.managerCert[info.server], *info.sysinfo, "", "")
+		cmd, e := client.NewLoginCmd(info.username, info.password, info.public, info.sysinfo.DeviceId, info.Sm2Priv, info.managerCert[info.server], *info.sysinfo, "", "")
 		if cmd == nil || e != nil {
 			//LError.Println("NewLoginCmd failed", "err", e.Error())
 			return nil, e
@@ -571,11 +542,18 @@ func clientExchangeCert(info *userInfo) error {
 			}
 		}
 	}
-	err = ioutil.WriteFile(GetManagerCertPath(info.server), []byte(certs.ManagerCert), 0755)
-	if err != nil {
-		//log.Println("Write certificate to file failed, err ", err, "filename", GetManagerCertPath(info.server))
-		return err
+
+	// save cert if not saved.
+	if f, err := os.Open(GetManagerCertPath(info.server)); err != nil {
+		err = ioutil.WriteFile(GetManagerCertPath(info.server), []byte(certs.ManagerCert), 0755)
+		if err != nil {
+			//log.Println("Write certificate to file failed, err ", err, "filename", GetManagerCertPath(info.server))
+			return err
+		}
+	} else {
+		f.Close()
 	}
+
 	cert, _ := common.SM2ReadCertificateFromMem([]byte(certs.ManagerCert))
 	addCertInfo(info.server, info.username, cert)
 	info.managerCert[info.server] = cert
