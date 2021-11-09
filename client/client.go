@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -110,20 +109,20 @@ func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]by
 		//log.Println("wait to read msg")
 		rlen, err := conn.Read(msg)
 		readLen = rlen
-		log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
+		//log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
 		ch <- err
 	}()
 
 	select {
 	case <-ctx.Done():
 		// request timeout
-		log.Println("request context timeout at ", time.Now().String())
+		//log.Println("request context timeout at ", time.Now().String())
 		return nil, ErrRequestTimeout
 	case err, _ := <-ch:
 		if err != nil {
 			return nil, err
 		} else {
-			log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
+			//log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
 			return msg[:readLen], nil
 		}
 	}
@@ -136,12 +135,12 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 	}
 
 	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
-	log.Println("request to server", serverAddr)
+	//log.Println("request to server", serverAddr)
 
 	var response []byte
 	var reserr error
 	for i := 0; i < 1; i++ {
-		log.Println("send request times ", i)
+		//log.Println("send request times ", i)
 		conn, err := net.Dial("udp", serverAddr)
 		if err != nil {
 			log.Println("net.Dial failed, err", err)
@@ -250,7 +249,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 		if decodeCerts, ne := common.Base64Decode(certData); ne != nil {
 			return errors.New(fmt.Sprintf("decode cert data failed, e:%s", ne.Error()))
 		} else {
-			log.Println("after decode base64:", decodeCerts)
+			//log.Println("after decode base64:", decodeCerts)
 			if err = json.Unmarshal(decodeCerts, &certs); err != nil {
 				log.Println("exchange certs, unmarshal to certResData failed, ", err.Error())
 				return err
@@ -295,9 +294,9 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	}
 	local.Sysinfo = sysinfo
 	//log.Println("client login sysinfostr", sysinfostr)
-	log.Println("client login sysinfo", sysinfo)
+	//log.Println("client login sysinfo", sysinfo)
 
-	log.Println("goto check exchange cert")
+	//log.Println("goto check exchange cert")
 	if needExchangeCert(local) {
 		log.Println("need exchange cert.")
 		err = clientExchangeCert(local, *sysinfo)

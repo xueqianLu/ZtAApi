@@ -11,16 +11,16 @@ import (
 )
 
 type DomainList struct {
-	*set.Set
+	set.Interface
 }
 
 func NewDomainList(domain string) *DomainList {
-	s := set.New(domain)
-	return &DomainList{s}
+	return NewDomainListWithItems(domain)
 }
 
 func NewDomainListWithItems(domains ...interface{}) *DomainList {
-	s := set.New(domains)
+	s := set.New(set.ThreadSafe)
+	s.Add(domains)
 	return &DomainList{s}
 }
 

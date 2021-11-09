@@ -71,7 +71,7 @@ func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
 
 	signature, err := SM2PrivSign(privk, data)
 	if err != nil {
-		log.Println("GenSignature failed, err ", err)
+		//log.Println("GenSignature failed, err ", err)
 		return err
 	}
 	u.Signature = signature
@@ -248,16 +248,16 @@ func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
 	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
 
 	var key1 = GenRandomHash()
-	log.Println("in hmc command, key1 = ", hex.EncodeToString(key1[:]))
+	//log.Println("in hmc command, key1 = ", hex.EncodeToString(key1[:]))
 	var key = BytesXor(key1[:], cmd.Random[:])
 	copy(cmd.Key[:], key)
 
 	cmd.Key2 = DevideKey(key1)
-	log.Println("after device key = ", hex.EncodeToString(cmd.Key2))
+	//log.Println("after device key = ", hex.EncodeToString(cmd.Key2))
 
 	cmd.EncPacket = SM4EncryptCBC(cmd.Key2, packet.Bytes())
 	if cmd.EncPacket == nil {
-		log.Println("SM4Encrypt return nil")
+		//log.Println("SM4Encrypt return nil")
 		return nil
 	}
 
