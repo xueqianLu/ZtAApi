@@ -71,7 +71,7 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 //export SignCertificate
 func SignCertificate(ca_pem string, ca_pri_pem string, csr string, days int) *C.char {
 	var res Response
-	LInfo.Printf("sign certificate parameter")
+	//LInfo.Printf("sign certificate parameter")
 	crt, err := ValidateCSRFromMem(csr, ca_pem, ca_pri_pem, days)
 	if err != nil {
 		LError.Printf("sign certificate failed, err:%s\n", err.Error())
@@ -90,8 +90,8 @@ func LightLogin(userName string, password string, server string,
 	sysinfo string) *C.char {
 	//LInfo.Printf("got login parameter userName(%s), password(%s), server(%s), sysinfo(%s)\n",
 	//	userName, password, server, sysinfo)
-	LInfo.Printf("got login parameter userName(%s)\n",
-		userName)
+	//LInfo.Printf("got login parameter userName(%s)\n",
+	//	userName)
 	data, err := lightLogin(userName, password, server, sysinfo)
 	if err != nil {
 		LError.Printf("light login failed, err:%s\n", err.Error())

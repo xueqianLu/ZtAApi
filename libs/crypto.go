@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
 	"log"
@@ -47,12 +48,12 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	}
 	privk, err := common.SM2ReadPrivateKeyFromMem(privkdata)
 	if err != nil {
-		log.Println("read private key failed, err", err)
+		//log.Println("read private key failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 	user_cert, err := common.SM2ReadCertificateFromMem(userCertData)
 	if err != nil {
-		log.Println("read certificate failed, err", err)
+		//log.Println("read certificate failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 	var blength = 32
@@ -87,6 +88,10 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 
 	//log.Printf("r_enc_length[0] = %x, r_enc_length[1] = %x\n", r_enc_length[0], r_enc_length[1])
 	enc_length := int16(r_enc_length[0])<<8 | int16(r_enc_length[1])&0x00ff
+
+	if enc_length > int16(len(data)) || enc_length < 0 {
+		return nil, errors.New(fmt.Sprintf("Invalid response with enc_length = %d", enc_length))
+	}
 	//log.Println("enc_length = ", enc_length)
 	r_encpac := data[offset : offset+int(enc_length)]
 	offset += int(enc_length)
