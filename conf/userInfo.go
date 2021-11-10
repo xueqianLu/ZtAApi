@@ -33,6 +33,7 @@ type AllConfigInfo struct {
 	ClientIp   string        `json:"client_ip"`
 	Gateway    []GatewayInfo `json:"gateway"`
 	Hosts      []HostInfo    `json:"hosts"`
+	Extradata  interface{}   `json:"extra_data"`
 }
 
 func (i AllConfigInfo) String() string {

@@ -160,6 +160,7 @@ type StorageConfig struct {
 	UserName      string             `json:"username"`
 	Password      string             `json:"-"`             // dec password
 	ServerAddr    string             `json:"serveraddr"`    // server addr
+	LoginToken    string             `json:"login_token"`   // login token
 	ServerHistory []string           `json:"serverhistory"` // server history
 	User          *UserConfig        `json:"-"`
 	Sysinfo       *common.SystemInfo `json:"-"` // system info
