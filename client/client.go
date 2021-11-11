@@ -26,7 +26,7 @@ const (
 var (
 	writeErr    = errors.New("send packet failed")
 	readErr     = errors.New("read packet failed")
-	readTimeout = errors.New("read timeout")
+	readTimeout = ErrRequestTimeout
 
 	// packet pool
 	packetPool = sync.Pool{
