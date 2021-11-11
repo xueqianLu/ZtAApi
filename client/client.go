@@ -141,7 +141,7 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 	}
 
 	timeout := time.Second * 5
-	retry := 3
+	retry := 1
 
 	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
 	//log.Println("request to server", serverAddr)
@@ -202,7 +202,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 			return e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -328,7 +328,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		}
 
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -443,7 +443,7 @@ func ClientLoginWithToken(local *conf.StorageConfig, sysinfostr string, verifyCo
 		}
 
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -535,7 +535,7 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 			managerCert := local.User.GetManagerCert(local.ServerAddr)
 			cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.PublicKey, local.User.Sm2Priv, managerCert)
 			_, err = requestToServer(local, cmd)
-			if err == ErrRequestTimeout {
+			if err == readTimeout {
 				// if request timeout , resend.
 				continue
 			}
@@ -578,7 +578,7 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -622,7 +622,7 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewReqUserHomeCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -672,7 +672,7 @@ func ClientReqToken(local *conf.StorageConfig) (*UserTokenResData, error) {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewReqUserTokenCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -728,7 +728,7 @@ func ClientReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 			return nil, e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -780,7 +780,7 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewReqUserInfoCmd(local.UserName, local.Password, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -830,7 +830,7 @@ func ClientRegetVerifyCode(local *conf.StorageConfig) error {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -880,7 +880,7 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 			return e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -977,7 +977,7 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, false)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -1043,7 +1043,7 @@ func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResD
 		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, "", true)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -1095,7 +1095,7 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -1144,7 +1144,7 @@ func AdminReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData
 			return nil, e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
