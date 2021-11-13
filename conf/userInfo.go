@@ -9,6 +9,7 @@ type ServerInfo struct {
 	Port      int    `json:"port"`
 	URL       string `json:"url"`
 	GatewayID int    `json:"gatewayid"`
+	Appid     int    `json:"appid"`
 }
 
 type HostInfo struct {
