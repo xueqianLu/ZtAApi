@@ -400,7 +400,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	return allConfigInfo, head.Status, err
 }
 
-func ClientLoginWithToken(local *conf.StorageConfig, sysinfostr string, verifyCode string, secondVerify string, token string) (*conf.AllConfigInfo, int, error) {
+func ClientLoginWithToken(local *conf.StorageConfig, sysinfostr string, verifyCode string, secondVerify string, quickLoginToken, accessToken string) (*conf.AllConfigInfo, int, error) {
 	var err error
 	var res, decPac []byte
 
@@ -436,7 +436,7 @@ func ClientLoginWithToken(local *conf.StorageConfig, sysinfostr string, verifyCo
 		local.User.DeviceId = sysinfo.DeviceId
 
 		cmd, e := NewLoginCmdWithToken(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
-			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify, token)
+			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify, quickLoginToken, accessToken)
 		if cmd == nil || e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
 			return nil, 1003, e
@@ -661,7 +661,7 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 	return &response.UserHomeResData, nil
 }
 
-func ClientReqToken(local *conf.StorageConfig) (*UserTokenResData, error) {
+func ClientReqToken(appid int, quickLoginToken string, accessToken string, local *conf.StorageConfig) (*UserTokenResData, error) {
 
 	err := checkAndGetUserConfig(local)
 	if err != nil {
@@ -670,7 +670,7 @@ func ClientReqToken(local *conf.StorageConfig) (*UserTokenResData, error) {
 	var res, decPac []byte
 	for retry := 0; retry < 6; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewReqUserTokenCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+		cmd, _ := NewReqUserTokenCmd(local.UserName, local.User.DeviceId, appid, quickLoginToken, accessToken, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue

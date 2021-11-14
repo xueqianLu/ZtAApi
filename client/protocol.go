@@ -48,7 +48,8 @@ type LoginReqPacket struct {
 	VerifyCode       string     `json:"verify_code"`
 	SecondVerifyCode string     `json:"second_verifyCode"`
 	MachineInfo      SystemInfo `json:"system_info"`
-	LoginToken       string     `json:"login_token"`
+	QuickLoginToken  string     `json:"quick_login_token"`
+	AccessToken      string     `json:"access_token"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -196,9 +197,10 @@ func (p UserHomeReqPacket) Bytes() []byte {
 
 type UserTokenReqPacket struct {
 	//Type      int    `json:"type"`
-	Timestamp int64  `json:"timestamp"`
-	Username  string `json:"username"`
-	Passwd    string `json:"passwd"`
+	Timestamp       int64  `json:"timestamp"`
+	AppId           int    `json:"appid"`
+	QuickLoginToken string `json:"quick_login_token"`
+	AccessToken     string `json:"access_token"`
 }
 
 func (p UserTokenReqPacket) Valid() bool {

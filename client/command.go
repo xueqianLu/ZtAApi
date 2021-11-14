@@ -134,10 +134,10 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 
 func NewLoginCmdWithToken(name string, passwd string, pubkey string, deviceId string,
 	privk *sm2.PrivateKey, manager_cert *sm2.Certificate, sysinfo SystemInfo,
-	verifyCode string, secondVerify string, loginToken string) (*UserCmd, error) {
+	verifyCode string, secondVerify string, quickLoginToken string, accessToken string) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
 	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
-		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: secondVerify, LoginToken: loginToken}
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: secondVerify, QuickLoginToken: quickLoginToken, AccessToken: accessToken}
 	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
 	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
 	if !lp.Valid() {
@@ -222,8 +222,8 @@ func NewReqUserHomeCmd(name string, passwd string, deviceId string, privk *sm2.P
 	return cmd, nil
 }
 
-func NewReqUserTokenCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
-	c := UserTokenReqPacket{Timestamp: time.Now().Unix(), Username: name, Passwd: passwd}
+func NewReqUserTokenCmd(name string, deviceId string, appid int, quickLoginToken string, accessToken string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := UserTokenReqPacket{Timestamp: time.Now().Unix(), AppId: appid, QuickLoginToken: quickLoginToken, AccessToken: accessToken}
 	p := &Packet{NormalUserGetToken, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
