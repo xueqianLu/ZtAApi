@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	. "github.com/xueqianLu/ZtAApi/common"
 	"github.com/xueqianLu/ZtAApi/conf"
+	"log"
 	"strings"
 )
 
@@ -48,6 +49,7 @@ type LoginReqPacket struct {
 	VerifyCode       string     `json:"verify_code"`
 	SecondVerifyCode string     `json:"second_verifyCode"`
 	MachineInfo      SystemInfo `json:"system_info"`
+	LoginToken       string     `json:"login_token"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -193,6 +195,47 @@ func (p UserHomeReqPacket) Bytes() []byte {
 	return bs
 }
 
+type UserTokenReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
+}
+
+func (p UserTokenReqPacket) Valid() bool {
+	return true
+}
+
+func (p UserTokenReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
+type SwitchNetReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp   int64  `json:"timestamp"`
+	Username    string `json:"username"`
+	Passwd      string `json:"passwd"`
+	NetworkMode int    `json:"mode"`
+}
+
+func (p SwitchNetReqPacket) Valid() bool {
+	return true
+}
+
+func (p SwitchNetReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
 //server response header
 type ServerResponse struct {
 	Type   int    `json:"cmd"`
@@ -261,6 +304,11 @@ func (p ExchangeCertResponse) String() string {
 }
 
 func ParseHostsInfo(hosts []conf.HostInfo) map[string]*DomainList {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Parse Hosts Info error ", err)
+		}
+	}()
 	hostinfo := make(map[string]*DomainList)
 	for _, host := range hosts {
 		section := strings.Split(host.Domain, " ")
@@ -289,6 +337,32 @@ type UserHomeResData struct {
 }
 
 func (p UserHomeResData) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+type SwitchNetworkResponse struct {
+	SwitchNetworkResData `json:"data"`
+}
+
+type SwitchNetworkResData struct {
+	Url string `json:"url"`
+}
+
+func (p SwitchNetworkResData) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+type UserTokenResponse struct {
+	UserTokenResData `json:"data"`
+}
+
+type UserTokenResData struct {
+	Token string `json:"token"`
+}
+
+func (p UserTokenResData) String() string {
 	b, _ := json.Marshal(p)
 	return string(b)
 }

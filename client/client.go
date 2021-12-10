@@ -1,7 +1,6 @@
 package client
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,14 +12,30 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	ServerHost     = "127.0.0.1"
 	ServerPort     = 36680
-	RequestTimeout = 10 * time.Second
 	MaxReadBuffer  = 60000
+	RequestTimeout = time.Second * 3
+)
+
+var (
+	writeErr    = errors.New("send packet failed")
+	readErr     = errors.New("read packet failed")
+	readTimeout = ErrRequestTimeout
+
+	// packet pool
+	packetPool = sync.Pool{
+		New: func() interface{} {
+			b := make([]byte, MaxReadBuffer)
+			return &b
+		},
+	}
+	timeoutRetry = 2
 )
 
 func SetLogger(writer io.Writer) {
@@ -35,7 +50,7 @@ func SetUserInfo(local *conf.StorageConfig, username, password string) {
 }
 
 func SetServerInfo(local *conf.StorageConfig, serveraddr string) {
-	local.ServerAddr = serveraddr
+	local.ServerAddr = strings.TrimSpace(serveraddr)
 	log.Println("set server addr ", serveraddr)
 }
 
@@ -95,36 +110,28 @@ func getServerIp(server string) (string, error) {
 
 func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]byte, error) {
 	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
+	conn.SetWriteDeadline(time.Now().Add(timeout))
 	if _, err := conn.Write(data); err != nil {
-		return nil, err
+		log.Printf("write packet failed:%s\n", err)
+		return nil, writeErr
 	}
+	buffer := packetPool.Get().(*[]byte)
+	conn.SetReadDeadline(time.Now().Add(timeout))
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	ch := make(chan error, 1)
-	msg := make([]byte, MaxReadBuffer)
-	readLen := 0
-	go func() {
-		//log.Println("wait to read msg")
-		rlen, err := conn.Read(msg)
-		readLen = rlen
-		//log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
-		ch <- err
-	}()
-
-	select {
-	case <-ctx.Done():
-		// request timeout
-		//log.Println("request context timeout at ", time.Now().String())
-		return nil, ErrRequestTimeout
-	case err, _ := <-ch:
-		if err != nil {
-			return nil, err
-		} else {
-			//log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
-			return msg[:readLen], nil
+	rlen, err := conn.Read(*buffer)
+	if err != nil {
+		packetPool.Put(buffer)
+		//log.Printf("read packet failed:%s\n", err)
+		netErr, ok := err.(*net.OpError)
+		if ok && netErr.Timeout() {
+			return nil, readTimeout
 		}
+		return nil, readErr
+	} else {
+		response := make([]byte, rlen)
+		copy(response, (*buffer)[:rlen])
+		packetPool.Put(buffer)
+		return response, nil
 	}
 }
 
@@ -134,29 +141,33 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 		return []byte{}, errors.New(fmt.Sprintf("can't parsed server %s", local.ServerAddr))
 	}
 
+	timeout := RequestTimeout
+	retry := 1
+
 	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
-	//log.Println("request to server", serverAddr)
+	log.Println("request to server", serverAddr)
 
 	var response []byte
 	var reserr error
-	for i := 0; i < 1; i++ {
+	for i := 0; i < retry; i++ {
 		//log.Println("send request times ", i)
-		conn, err := net.Dial("udp", serverAddr)
+		conn, err := net.DialTimeout("udp", serverAddr, timeout)
 		if err != nil {
-			log.Println("net.Dial failed, err", err)
+			//log.Println("net.Dial failed, err", err)
 			return nil, err
 		}
 
-		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*5)
+		response, reserr = requestWithTimeout(conn, cmd.Data(), timeout)
 		conn.Close()
-		if reserr == ErrRequestTimeout {
+
+		if reserr == readTimeout {
+			log.Println("request sever timeout")
 			continue
 		} else {
 			break
 		}
 	}
 	return response, reserr
-
 }
 
 func GetUsername(local *conf.StorageConfig) string {
@@ -170,7 +181,8 @@ func GetZtALoginInfo(lg *LoginResData) string {
 
 func needExchangeCert(conf *conf.StorageConfig) bool {
 	managerCert := conf.User.GetManagerCert(conf.User.ServerAddr)
-	if conf.User.Sm2Priv != nil && managerCert != nil {
+
+	if conf.User.Sm2Priv != nil && managerCert != nil && conf.User.GetLastLoginStatus(conf.User.ServerAddr) {
 		return false
 	}
 	return true
@@ -186,14 +198,14 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 		return errors.New("have no scsr data")
 	}
 
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
 		if e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
 			return e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -286,6 +298,13 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		return nil, 1000, err
 	}
 
+	defer func() {
+		if err != nil && err == ErrRequestTimeout {
+			local.User.SetLoginStatus(local.User.ServerAddr, false)
+		} else {
+			local.User.SetLoginStatus(local.User.ServerAddr, true)
+		}
+	}()
 	var sysinfo = &common.SystemInfo{}
 	err = json.Unmarshal([]byte(sysinfostr), &sysinfo)
 	if err != nil {
@@ -307,7 +326,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		log.Println("exchange cert success, goto login")
 	}
 
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 
 		local.User.DeviceId = sysinfo.DeviceId
@@ -319,7 +338,122 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		}
 
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
+			continue
+		}
+		if err != nil {
+			log.Println("request to server err:", err)
+			return nil, 1004, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, 1005, err
+		}
+		break
+	}
+	if err != nil {
+		return nil, 1008, err
+	}
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, 1006, err
+	}
+	// parse res
+	var login = &LoginResponse{}
+	if err = json.Unmarshal(decPac, &login); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, 1007, err
+	}
+
+	//if head.Status != 1 {
+	//	msg, _ := common.Base64Decode(head.Msg)
+	//	err = errors.New(string(msg))
+	//	return nil, head.Status, err
+	//}
+
+	var userConfig string
+	userConfig += login.SliceInfo
+	var reqSliceOffset = login.SliceOffset + 1
+	for i := reqSliceOffset; i < login.SliceCount; i++ {
+		if configSlice, e := ClientReqSliceInfo(local, i); e != nil {
+			log.Println("request userconfig failed, e:", e.Error())
+			return nil, 1009, e
+		} else {
+			userConfig += configSlice.SliceInfo
+		}
+	}
+	allConfigInfo := &conf.AllConfigInfo{}
+	allConfigInfo.VerifyType = login.VerifyType
+
+	if len(userConfig) > 0 {
+		updateServerHistory(local) // add server to history.
+		if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
+			return nil, 1010, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
+		} else {
+			log.Println("after decode base64:", decodedConfig)
+			if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
+				log.Println("user login, unmarshal to allConfigInfo failed.")
+				return nil, 1011, err
+			}
+		}
+	}
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+	}
+
+	return allConfigInfo, head.Status, err
+}
+
+func ClientLoginWithToken(local *conf.StorageConfig, sysinfostr string, verifyCode string, secondVerify string, token string) (*conf.AllConfigInfo, int, error) {
+	var err error
+	var res, decPac []byte
+
+	err = checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, 1000, err
+	}
+
+	var sysinfo = &common.SystemInfo{}
+	err = json.Unmarshal([]byte(sysinfostr), &sysinfo)
+	if err != nil {
+		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
+		return nil, 1001, err
+	}
+	local.Sysinfo = sysinfo
+	//log.Println("client login sysinfostr", sysinfostr)
+	//log.Println("client login sysinfo", sysinfo)
+
+	//log.Println("goto check exchange cert")
+	if needExchangeCert(local) {
+		log.Println("need exchange cert.")
+		err = clientExchangeCert(local, *sysinfo)
+		if err != nil {
+			log.Println("exchange cert failed, err ", err)
+			return nil, 1002, err
+		}
+		log.Println("exchange cert success, goto login")
+	}
+
+	for retry := 0; retry < timeoutRetry; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+
+		local.User.DeviceId = sysinfo.DeviceId
+
+		cmd, e := NewLoginCmdWithToken(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
+			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify, token)
+		if cmd == nil || e != nil {
+			log.Println("NewLoginCmd failed", "err", e.Error())
+			return nil, 1003, e
+		}
+
+		res, err = requestToServer(local, cmd)
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -407,11 +541,11 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 		}
 
 		log.Println("client logout, force =", force)
-		for retry := 0; retry < 6; retry++ {
+		for retry := 0; retry < timeoutRetry; retry++ {
 			managerCert := local.User.GetManagerCert(local.ServerAddr)
 			cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.PublicKey, local.User.Sm2Priv, managerCert)
 			_, err = requestToServer(local, cmd)
-			if err == ErrRequestTimeout {
+			if err == readTimeout {
 				// if request timeout , resend.
 				continue
 			}
@@ -450,11 +584,11 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 		return err
 	}
 	var res, decPac []byte
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -494,11 +628,11 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 		return nil, err
 	}
 	var res, decPac []byte
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewReqUserHomeCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -537,6 +671,106 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 	return &response.UserHomeResData, nil
 }
 
+func ClientReqToken(local *conf.StorageConfig) (*UserTokenResData, error) {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+	var res, decPac []byte
+	for retry := 0; retry < timeoutRetry; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewReqUserTokenCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+		res, err = requestToServer(local, cmd)
+		if err == readTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return nil, err
+	}
+	// parse res
+	var response = &UserTokenResponse{}
+	if err = json.Unmarshal(decPac, &response); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &response.UserTokenResData, nil
+}
+
+func ClientReqSwitchNetwork(local *conf.StorageConfig, mode int) (*SwitchNetworkResData, error) {
+
+	err := checkAndGetUserConfig(local)
+	if err != nil {
+		return nil, err
+	}
+	var res, decPac []byte
+	for retry := 0; retry < 6; retry++ {
+		managerCert := local.User.GetManagerCert(local.ServerAddr)
+		cmd, _ := NewReqSwitchNetworkCmd(local.UserName, local.Password, local.User.DeviceId, mode, local.User.Sm2Priv, managerCert)
+		res, err = requestToServer(local, cmd)
+		if err == ErrRequestTimeout {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		// den
+		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
+		if err == common.ErrSM2Decrypt {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	head := &ServerResponse{}
+	if err = json.Unmarshal(decPac, &head); err != nil {
+		log.Println("decpac unmarshal to server response failed.")
+		return nil, err
+	}
+	if head.Status != 1 {
+		msg, _ := common.Base64Decode(head.Msg)
+		err = errors.New(string(msg))
+		return nil, err
+	}
+	// parse res
+	var response = &SwitchNetworkResponse{}
+	if err = json.Unmarshal(decPac, &response); err != nil {
+		log.Println("decpac unmarshal to LoginResponse failed.")
+		return nil, err
+	}
+	return &response.SwitchNetworkResData, nil
+}
+
 func ClientReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData, error) {
 	var err error
 	var res, decPac []byte
@@ -547,14 +781,14 @@ func ClientReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 		return nil, errors.New("have no scsr data")
 	}
 
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		cmd, e := NewNormalReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
 		if e != nil {
 			log.Println("NewReqCertSliceCmd failed", "err", e.Error())
 			return nil, e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -602,11 +836,11 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 		return nil, err
 	}
 	var res, decPac []byte
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewReqUserInfoCmd(local.UserName, local.Password, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -652,11 +886,11 @@ func ClientRegetVerifyCode(local *conf.StorageConfig) error {
 		return err
 	}
 	var res, decPac []byte
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -699,14 +933,14 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 		return errors.New("have no scsr data")
 	}
 
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		cmd, e := NewAdminExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
 		if e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
 			return e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -798,12 +1032,12 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 		}
 		log.Println("exchange cert success, goto login")
 	}
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, false)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -864,12 +1098,12 @@ func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResD
 	if needExchangeCert(local) {
 		return nil, errors.New("need exchange cert first")
 	}
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, "", true)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -917,11 +1151,11 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 		return err
 	}
 	var res, decPac []byte
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 		cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {
@@ -963,14 +1197,14 @@ func AdminReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData
 	if csr == nil {
 		return nil, errors.New("have no scsr data")
 	}
-	for retry := 0; retry < 6; retry++ {
+	for retry := 0; retry < timeoutRetry; retry++ {
 		cmd, e := NewAdminReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
 		if e != nil {
 			log.Println("NewAdminReqCertSliceCmd failed", "err", e.Error())
 			return nil, e
 		}
 		res, err = requestToServer(local, cmd)
-		if err == ErrRequestTimeout {
+		if err == readTimeout {
 			continue
 		}
 		if err != nil {

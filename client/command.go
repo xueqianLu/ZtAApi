@@ -19,8 +19,10 @@ const (
 	NormalUserReqSliceInfo byte = 5 //普通用户获取用户配置信息
 	NormalUserReqCertSlice byte = 6 // 普通用户获取证书分片信息
 
-	NormalUserReqHome         byte = 7 //普通用户获取home url
-	NormalUserRegetVerifyCode byte = 8 //普通用户获取用户配置信息
+	NormalUserReqHome         byte = 7  //普通用户获取home url
+	NormalUserRegetVerifyCode byte = 8  //普通用户获取用户配置信息
+	NormalUserGetToken        byte = 9  //普通用户获取token
+	NormalUserNetworkSwitch   byte = 88 //普通用户切换网络(内网、外网)
 
 	AdminExchangeCertMsg byte = 10                     //管理员交换证书
 	AdminLoginMsg        byte = 11                     //管理员登录
@@ -131,6 +133,25 @@ func NewLoginCmd(name string, passwd string, pubkey string, deviceId string,
 	return cmd, nil
 }
 
+func NewLoginCmdWithToken(name string, passwd string, pubkey string, deviceId string,
+	privk *sm2.PrivateKey, manager_cert *sm2.Certificate, sysinfo SystemInfo,
+	verifyCode string, secondVerify string, loginToken string) (*UserCmd, error) {
+	pwdhash := SHA256([]byte(passwd))
+	lp := LoginReqPacket{DeviceID: deviceId, Pubkey: pubkey, PwdHash: hex.EncodeToString(pwdhash), Timestamp: time.Now().Unix(),
+		Username: name, Passwd: passwd, MachineInfo: sysinfo, VerifyCode: verifyCode, SecondVerifyCode: secondVerify, LoginToken: loginToken}
+	//log.Println("new logincmd deviceid:", deviceId, "len(deviceid)", len(deviceId))
+	//log.Println("new logincmd pubkey:", pubkey, "len(pubkey)", len(pubkey))
+	if !lp.Valid() {
+		return nil, errors.New("invalid param")
+	}
+	//log.Println("loginReqpacket:", string(lp.Bytes()))
+
+	p := &Packet{NormalUserLogin, lp.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
 func NewAdminLoginCmd(name string, passwd string, deviceId string, privk *sm2.PrivateKey,
 	manager_cert *sm2.Certificate, sysinfo SystemInfo, verifyCode string, getUrl bool) (*UserCmd, error) {
 	pwdhash := SHA256([]byte(passwd))
@@ -197,6 +218,22 @@ func NewReqUserInfoCmd(name string, passwd string, deviceId string, startOffset 
 func NewReqUserHomeCmd(name string, passwd string, deviceId string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	c := UserHomeReqPacket{Timestamp: time.Now().Unix(), Username: name, Passwd: passwd}
 	p := &Packet{NormalUserReqHome, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewReqUserTokenCmd(name string, deviceId string, passwd string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := UserTokenReqPacket{Timestamp: time.Now().Unix(), Username: name, Passwd: passwd}
+	p := &Packet{NormalUserGetToken, c.Bytes()}
+	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
+
+	return cmd, nil
+}
+
+func NewReqSwitchNetworkCmd(name string, passwd string, deviceId string, mode int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := SwitchNetReqPacket{Timestamp: time.Now().Unix(), Username: name, Passwd: passwd, NetworkMode: mode}
+	p := &Packet{NormalUserNetworkSwitch, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
 	return cmd, nil

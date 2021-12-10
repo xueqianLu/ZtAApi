@@ -25,14 +25,16 @@ type GatewayInfo struct {
 }
 
 type AllConfigInfo struct {
-	VerifyType string        `json:"verify_type"`
-	UserId     string        `json:"usrID"`
-	LifeTime   int           `json:"lifetime"` // unit minutes
-	Key        string        `json:"key"`
-	HomeUrl    string        `json:"url"`
-	ClientIp   string        `json:"client_ip"`
-	Gateway    []GatewayInfo `json:"gateway"`
-	Hosts      []HostInfo    `json:"hosts"`
+	VerifyType  string        `json:"verify_type"`
+	UserId      string        `json:"usrID"`
+	LifeTime    int           `json:"lifetime"` // unit minutes
+	Key         string        `json:"key"`
+	HomeUrl     string        `json:"url"`
+	ClientIp    string        `json:"client_ip"`
+	Gateway     []GatewayInfo `json:"gateway"`
+	Hosts       []HostInfo    `json:"hosts"`
+	Extradata   interface{}   `json:"extra_data"`
+	NetworkMode int           `json:"mode"`
 }
 
 func (i AllConfigInfo) String() string {

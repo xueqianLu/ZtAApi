@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 const (
@@ -26,11 +27,12 @@ type managerCertInfo struct {
 }
 
 type UserConfig struct {
-	UserName   string `json:"username"`   // username
-	ServerAddr string `json:"serveraddr"` // server addr
-	AutoLogin  bool   `json:"autologin"`  // autologin
-	ConfPath   string `json:"-"`
-	DeviceId   string `json:"-"` // current device id
+	UserName    string          `json:"username"`    // username
+	ServerAddr  string          `json:"serveraddr"`  // server addr
+	AutoLogin   bool            `json:"autologin"`   // autologin
+	LoginStatus map[string]bool `json:"loginstatus"` // last login status, true is success, false is failed.
+	ConfPath    string          `json:"-"`
+	DeviceId    string          `json:"-"` // current device id
 
 	SM2PrivkFile string          `json:"-"` // sm2 privk file path.
 	Sm2Priv      *sm2.PrivateKey `json:"-"` // sm2 privk in mem.
@@ -39,6 +41,7 @@ type UserConfig struct {
 
 	ServerList   []string           `json:"serverlist"` // save all manager cert server addr.
 	ManagerCerts []*managerCertInfo `json:"-"`          // save all manager cert info.
+	mux          sync.RWMutex
 }
 
 func (c *UserConfig) createPrivk() error {
@@ -155,11 +158,30 @@ func (c *UserConfig) addManagerCert(server string, cert *sm2.Certificate) {
 	}
 }
 
+func (c *UserConfig) SetLoginStatus(server string, status bool) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if c.LoginStatus == nil {
+		c.LoginStatus = make(map[string]bool)
+	}
+	c.LoginStatus[server] = status
+}
+
+func (c *UserConfig) GetLastLoginStatus(server string) bool {
+	c.mux.RLock()
+	defer c.mux.RUnlock()
+	if c.LoginStatus == nil {
+		c.LoginStatus = make(map[string]bool)
+	}
+	return c.LoginStatus[server]
+}
+
 type StorageConfig struct {
 	RootPath      string             `json:"configpath"`
 	UserName      string             `json:"username"`
 	Password      string             `json:"-"`             // dec password
 	ServerAddr    string             `json:"serveraddr"`    // server addr
+	LoginToken    string             `json:"login_token"`   // login token
 	ServerHistory []string           `json:"serverhistory"` // server history
 	User          *UserConfig        `json:"-"`
 	Sysinfo       *common.SystemInfo `json:"-"` // system info
@@ -228,7 +250,9 @@ func getManagerCert(userpath string, server string) (*managerCertInfo, error) {
 }
 
 func loadUserLocalConfig(userpath string, username string, serveraddr string) (*UserConfig, error) {
-	var config UserConfig
+	var config = UserConfig{
+		LoginStatus: make(map[string]bool),
+	}
 
 	p := userpath
 	name := filepath.Join(p, ztaUserConfigFile)
