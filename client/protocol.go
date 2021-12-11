@@ -220,6 +220,7 @@ type SwitchNetReqPacket struct {
 	Timestamp   int64  `json:"timestamp"`
 	Username    string `json:"username"`
 	Passwd      string `json:"passwd"`
+	Pubkey      string `json:"pubkey"`
 	NetworkMode int    `json:"mode"`
 }
 

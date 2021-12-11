@@ -730,7 +730,7 @@ func ClientReqSwitchNetwork(local *conf.StorageConfig, mode int) (*SwitchNetwork
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewReqSwitchNetworkCmd(local.UserName, local.Password, local.User.DeviceId, mode, local.User.Sm2Priv, managerCert)
+		cmd, _ := NewReqSwitchNetworkCmd(local.UserName, local.Password, local.User.DeviceId, mode, local.User.Sm2Priv, local.PublicKey, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == ErrRequestTimeout {
 			continue

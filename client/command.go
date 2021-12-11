@@ -231,8 +231,8 @@ func NewReqUserTokenCmd(name string, deviceId string, passwd string, privk *sm2.
 	return cmd, nil
 }
 
-func NewReqSwitchNetworkCmd(name string, passwd string, deviceId string, mode int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
-	c := SwitchNetReqPacket{Timestamp: time.Now().Unix(), Username: name, Passwd: passwd, NetworkMode: mode}
+func NewReqSwitchNetworkCmd(name string, passwd string, deviceId string, mode int, privk *sm2.PrivateKey, pub string, manager_cert *sm2.Certificate) (*UserCmd, error) {
+	c := SwitchNetReqPacket{Timestamp: time.Now().Unix(), Username: name, Passwd: passwd, NetworkMode: mode, Pubkey: pub}
 	p := &Packet{NormalUserNetworkSwitch, c.Bytes()}
 	cmd := NewUserCommand(name, deviceId, privk, manager_cert, p)
 
