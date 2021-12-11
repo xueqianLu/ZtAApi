@@ -22,7 +22,7 @@ const (
 	NormalUserReqHome         byte = 7  //普通用户获取home url
 	NormalUserRegetVerifyCode byte = 8  //普通用户获取用户配置信息
 	NormalUserGetToken        byte = 9  //普通用户获取token
-	NormalUserNetworkSwitch   byte = 88 //普通用户切换网络(内网、外网)
+	NormalUserNetworkSwitch   byte = 16 //普通用户切换网络(内网、外网)
 
 	AdminExchangeCertMsg byte = 10                     //管理员交换证书
 	AdminLoginMsg        byte = 11                     //管理员登录
