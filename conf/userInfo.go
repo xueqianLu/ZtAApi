@@ -23,19 +23,23 @@ type GatewayInfo struct {
 	AllowServers []ServerInfo `json:"allowed_servers"`
 	DNSServers   []string     `json:"dns_server"`
 }
-
+type IpPair struct {
+	Ip   string `json:"ip"`
+	Mask string `json:"mask"`
+}
 type AllConfigInfo struct {
-	VerifyType   string        `json:"verify_type"`
-	UserId       string        `json:"usrID"`
-	LifeTime     int           `json:"lifetime"` // unit minutes
-	Key          string        `json:"key"`
-	HomeUrl      string        `json:"url"`
-	ClientIp     string        `json:"client_ip"`
-	Gateway      []GatewayInfo `json:"gateway"`
-	Hosts        []HostInfo    `json:"hosts"`
-	Extradata    interface{}   `json:"extra_data"`
-	NetworkMode  int           `json:"mode"`
-	LocalNetwork []string      `json:"local_network"`
+	VerifyType          string        `json:"verify_type"`
+	UserId              string        `json:"usrID"`
+	LifeTime            int           `json:"lifetime"` // unit minutes
+	Key                 string        `json:"key"`
+	HomeUrl             string        `json:"url"`
+	ClientIp            string        `json:"client_ip"`
+	Gateway             []GatewayInfo `json:"gateway"`
+	Hosts               []HostInfo    `json:"hosts"`
+	Extradata           interface{}   `json:"extra_data"`
+	NetworkMode         int           `json:"networkDefault"`
+	EnableNetworkSwitch bool          `json:"switchNetworkEnable"`
+	LocalNetwork        []IpPair      `json:"netWorkSegment"`
 }
 
 func (i AllConfigInfo) String() string {
