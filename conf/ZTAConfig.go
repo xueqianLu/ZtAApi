@@ -185,6 +185,8 @@ type StorageConfig struct {
 	ServerHistory []string           `json:"serverhistory"` // server history
 	User          *UserConfig        `json:"-"`
 	Sysinfo       *common.SystemInfo `json:"-"` // system info
+	LocalAddr     string             `json:"-"` // local ipaddress
+	LocalMac      string             `json:"-"` // local macaddress
 
 	PrivateKey string `json:"private"` // private key
 	PublicKey  string `json:"-"`       // public key

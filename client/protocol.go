@@ -22,6 +22,8 @@ type AdminLoginReqPacket struct {
 	Passwd      string     `json:"passwd"`
 	VerifyCode  string     `json:"verify_code"`
 	GetUrl      bool       `json:"get_url"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
 	MachineInfo SystemInfo `json:"system_info"`
 }
 
@@ -50,6 +52,8 @@ type LoginReqPacket struct {
 	SecondVerifyCode string     `json:"second_verifyCode"`
 	MachineInfo      SystemInfo `json:"system_info"`
 	LoginToken       string     `json:"login_token"`
+	IpAddr           string     `json:"ip"`
+	MacAddr          string     `json:"mac"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -75,6 +79,8 @@ type ChangePwdPacket struct {
 	Timestamp  int64  `json:"timestamp"`
 	Username   string `json:"username"`
 	Passwd     string `json:"passwd"`
+	IpAddr     string `json:"ip"`
+	MacAddr    string `json:"mac"`
 }
 
 func (c ChangePwdPacket) Valid() bool {
@@ -96,6 +102,8 @@ type ReGetVerifyCodePacket struct {
 	Username    string     `json:"username"`
 	Passwd      string     `json:"passwd"`
 	MachineInfo SystemInfo `json:"system_info"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
 }
 
 func (c ReGetVerifyCodePacket) Valid() bool {
@@ -118,6 +126,8 @@ type LogoutPacket struct {
 	Timestamp int64  `json:"timestamp"`
 	Username  string `json:"username"`
 	Passwd    string `json:"passwd"`
+	IpAddr    string `json:"ip"`
+	MacAddr   string `json:"mac"`
 }
 
 func (p LogoutPacket) Valid() bool {
@@ -139,6 +149,8 @@ type ExchangeCertPacket struct {
 	Csrdata     string     `json:"csrdata"`
 	Timestamp   int64      `json:"timestamp"`
 	MachineInfo SystemInfo `json:"system_info"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
 }
 
 func (p ExchangeCertPacket) Valid() bool {
@@ -180,6 +192,8 @@ type UserHomeReqPacket struct {
 	Timestamp int64  `json:"timestamp"`
 	Username  string `json:"username"`
 	Passwd    string `json:"passwd"`
+	IpAddr    string `json:"ip"`
+	MacAddr   string `json:"mac"`
 }
 
 func (p UserHomeReqPacket) Valid() bool {
@@ -200,6 +214,8 @@ type UserTokenReqPacket struct {
 	Timestamp int64  `json:"timestamp"`
 	Username  string `json:"username"`
 	Passwd    string `json:"passwd"`
+	IpAddr    string `json:"ip"`
+	MacAddr   string `json:"mac"`
 }
 
 func (p UserTokenReqPacket) Valid() bool {
@@ -222,6 +238,8 @@ type SwitchNetReqPacket struct {
 	Passwd      string `json:"passwd"`
 	Pubkey      string `json:"pubkey"`
 	NetworkMode int    `json:"mode"`
+	IpAddr      string `json:"ip"`
+	MacAddr     string `json:"mac"`
 }
 
 func (p SwitchNetReqPacket) Valid() bool {

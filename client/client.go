@@ -72,6 +72,15 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 			conf.ClientUserConfigSave(local.User)
 		}
 	}()
+	{
+		conn, err := dialServer(local.ServerAddr)
+		if err == nil {
+			local.LocalAddr = conn.LocalAddr().String()
+			log.Println("local ip := ", local.LocalAddr)
+			local.LocalMac, _ = common.GetNetIfMac(local.LocalAddr)
+			log.Println("local mac := ", local.LocalMac)
+		}
+	}
 
 	if local.User != nil && local.UserName == local.User.UserName {
 		local.User.ServerAddr = local.ServerAddr
@@ -95,6 +104,16 @@ func checkIp(server string) bool {
 	}
 	return false
 }
+
+func dialServer(server string) (net.Conn, error) {
+	ip, err := getServerIp(server)
+	if err != nil {
+		return nil, err
+	}
+	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
+	return net.DialTimeout("udp", serverAddr, time.Second)
+}
+
 func getServerIp(server string) (string, error) {
 	if checkIp(server) {
 		return server, nil
@@ -199,7 +218,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	}
 
 	for retry := 0; retry < timeoutRetry; retry++ {
-		cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
+		cmd, e := NewNormalExchangeCertCmd(local, string(csr), sysinfo)
 		if e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
 			return e
@@ -330,7 +349,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
 
 		local.User.DeviceId = sysinfo.DeviceId
-		cmd, e := NewLoginCmd(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
+		cmd, e := NewLoginCmd(local, local.PublicKey, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
 		if cmd == nil || e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
@@ -445,7 +464,7 @@ func ClientLoginWithToken(local *conf.StorageConfig, sysinfostr string, verifyCo
 
 		local.User.DeviceId = sysinfo.DeviceId
 
-		cmd, e := NewLoginCmdWithToken(local.UserName, local.Password, local.PublicKey, sysinfo.DeviceId,
+		cmd, e := NewLoginCmdWithToken(local, local.PublicKey, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify, token)
 		if cmd == nil || e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
@@ -543,7 +562,7 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 		log.Println("client logout, force =", force)
 		for retry := 0; retry < timeoutRetry; retry++ {
 			managerCert := local.User.GetManagerCert(local.ServerAddr)
-			cmd, _ := NewLogoutCmd(local.UserName, local.User.DeviceId, local.Password, local.PublicKey, local.User.Sm2Priv, managerCert)
+			cmd, _ := NewLogoutCmd(local, local.User.DeviceId, local.PublicKey, local.User.Sm2Priv, managerCert)
 			_, err = requestToServer(local, cmd)
 			if err == readTimeout {
 				// if request timeout , resend.
@@ -586,7 +605,7 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewChangePwdCmd(local.UserName, local.User.DeviceId, local.Password, newpwd, local.User.Sm2Priv, managerCert)
+		cmd, _ := NewChangePwdCmd(local, local.User.DeviceId, newpwd, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue
@@ -630,7 +649,7 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewReqUserHomeCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+		cmd, _ := NewReqUserHomeCmd(local, local.User.DeviceId, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue
@@ -680,7 +699,7 @@ func ClientReqToken(local *conf.StorageConfig) (*UserTokenResData, error) {
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewReqUserTokenCmd(local.UserName, local.Password, local.User.DeviceId, local.User.Sm2Priv, managerCert)
+		cmd, _ := NewReqUserTokenCmd(local, local.User.DeviceId, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue
@@ -730,7 +749,7 @@ func ClientReqSwitchNetwork(local *conf.StorageConfig, mode int) (*SwitchNetwork
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewReqSwitchNetworkCmd(local.UserName, local.Password, local.User.DeviceId, mode, local.User.Sm2Priv, local.PublicKey, managerCert)
+		cmd, _ := NewReqSwitchNetworkCmd(local, local.User.DeviceId, mode, local.User.Sm2Priv, local.PublicKey, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == ErrRequestTimeout {
 			continue
@@ -838,7 +857,7 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewReqUserInfoCmd(local.UserName, local.Password, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
+		cmd, _ := NewReqUserInfoCmd(local, local.User.DeviceId, offset, local.User.Sm2Priv, managerCert)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue
@@ -888,7 +907,7 @@ func ClientRegetVerifyCode(local *conf.StorageConfig) error {
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
+		cmd, _ := NewRegetVerifyCodeCmd(local, local.User.DeviceId, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue
@@ -934,7 +953,7 @@ func adminExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) err
 	}
 
 	for retry := 0; retry < timeoutRetry; retry++ {
-		cmd, e := NewAdminExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
+		cmd, e := NewAdminExchangeCertCmd(local, string(csr), sysinfo)
 		if e != nil {
 			log.Println("NewLoginCmd failed", "err", e.Error())
 			return e
@@ -1034,7 +1053,7 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 	}
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
+		cmd, _ := NewAdminLoginCmd(local, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, false)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
@@ -1100,7 +1119,7 @@ func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResD
 	}
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewAdminLoginCmd(local.UserName, local.Password, sysinfo.DeviceId,
+		cmd, _ := NewAdminLoginCmd(local, sysinfo.DeviceId,
 			local.User.Sm2Priv, managerCert, *sysinfo, "", true)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
@@ -1153,7 +1172,7 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 	var res, decPac []byte
 	for retry := 0; retry < timeoutRetry; retry++ {
 		managerCert := local.User.GetManagerCert(local.ServerAddr)
-		cmd, _ := NewAdminRegetVerifyCodeCmd(local.UserName, local.User.DeviceId, local.Password, local.User.Sm2Priv, managerCert, *local.Sysinfo)
+		cmd, _ := NewAdminRegetVerifyCodeCmd(local, local.User.DeviceId, local.User.Sm2Priv, managerCert, *local.Sysinfo)
 		res, err = requestToServer(local, cmd)
 		if err == readTimeout {
 			continue
