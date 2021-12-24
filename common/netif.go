@@ -7,10 +7,16 @@ import (
 	"strings"
 )
 
-func GetIpAddress(conn net.Conn) string {
-	addr := conn.LocalAddr().String()
-	strs := strings.Split(addr, ":")
-	return strs[0]
+func GetIpV4Address(ipstr string) string {
+	if strings.Contains(ipstr, ":") {
+		strs := strings.Split(ipstr, ":")
+		return strings.TrimSpace(strs[0])
+	} else if strings.Contains(ipstr, "/") {
+		strs := strings.Split(ipstr, "/")
+		return strings.TrimSpace(strs[0])
+	} else {
+		return ipstr
+	}
 }
 
 func GetMacString(mac []byte) string {
@@ -36,8 +42,10 @@ func GetNetIfMac(localip string) (string, error) {
 			continue
 		}
 		for _, addr := range addrs {
-			ifip := net.ParseIP(addr.String())
+			ifip := net.ParseIP(GetIpV4Address(addr.String()))
+			//log.Printf("localip = (%s), netif ip = (%s)\n", localip, addr.String())
 			local := net.ParseIP(localip)
+			//log.Printf("len(ifip) = %d, len(local) = %d\n", len(ifip), len(local))
 			if ifip.Equal(local) {
 				return ifp.HardwareAddr.String(), nil
 			}
