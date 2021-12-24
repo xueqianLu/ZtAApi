@@ -75,7 +75,7 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 	{
 		conn, err := dialServer(local.ServerAddr)
 		if err == nil {
-			local.LocalAddr = conn.LocalAddr().String()
+			local.LocalAddr = common.GetIpAddress(conn)
 			log.Println("local ip := ", local.LocalAddr)
 			local.LocalMac, _ = common.GetNetIfMac(local.LocalAddr)
 			log.Println("local mac := ", local.LocalMac)

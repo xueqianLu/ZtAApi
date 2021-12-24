@@ -4,7 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 )
+
+func GetIpAddress(conn net.Conn) string {
+	addr := conn.LocalAddr().String()
+	strs := strings.Split(addr, ":")
+	return strs[0]
+}
 
 func GetMacString(mac []byte) string {
 	var macstr string = ""
