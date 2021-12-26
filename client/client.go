@@ -73,13 +73,15 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 		}
 	}()
 	{
-		conn, err := dialServer(local.ServerAddr)
-		if err == nil {
-			local.LocalAddr = common.GetIpV4Address(conn.LocalAddr().String())
-			log.Println("local ip := ", local.LocalAddr)
-			local.LocalMac, _ = common.GetNetIfMac(local.LocalAddr)
-			log.Println("local mac := ", local.LocalMac)
-			conn.Close()
+		if len(local.LocalAddr) == 0 {
+			conn, err := dialServer(local.ServerAddr)
+			if err == nil {
+				local.LocalAddr = common.GetIpV4Address(conn.LocalAddr().String())
+				log.Println("local ip := ", local.LocalAddr)
+				local.LocalMac, _ = common.GetNetIfMac(local.LocalAddr)
+				log.Println("local mac := ", local.LocalMac)
+				conn.Close()
+			}
 		}
 	}
 
