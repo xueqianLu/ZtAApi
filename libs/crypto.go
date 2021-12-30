@@ -1,10 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/tjfoc/gmsm/sm2"
 	"github.com/xueqianLu/ZtAApi/common"
 	"log"
+	"math/big"
+	"os"
+	"time"
 )
 
 var (
@@ -42,12 +48,12 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	}
 	privk, err := common.SM2ReadPrivateKeyFromMem(privkdata)
 	if err != nil {
-		log.Println("read private key failed, err", err)
+		//log.Println("read private key failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 	user_cert, err := common.SM2ReadCertificateFromMem(userCertData)
 	if err != nil {
-		log.Println("read certificate failed, err", err)
+		//log.Println("read certificate failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 	var blength = 32
@@ -80,21 +86,25 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	r_enc_length := data[offset : offset+2]
 	offset += 2
 
-	log.Printf("r_enc_length[0] = %x, r_enc_length[1] = %x\n", r_enc_length[0], r_enc_length[1])
+	//log.Printf("r_enc_length[0] = %x, r_enc_length[1] = %x\n", r_enc_length[0], r_enc_length[1])
 	enc_length := int16(r_enc_length[0])<<8 | int16(r_enc_length[1])&0x00ff
-	log.Println("enc_length = ", enc_length)
+
+	if enc_length > int16(len(data)) || enc_length < 0 {
+		return nil, errors.New(fmt.Sprintf("Invalid response with enc_length = %d", enc_length))
+	}
+	//log.Println("enc_length = ", enc_length)
 	r_encpac := data[offset : offset+int(enc_length)]
 	offset += int(enc_length)
 
 	r_sign := data[offset:]
-	log.Println("r_signature ", common.ToHex(r_sign))
+	//log.Println("r_signature ", common.ToHex(r_sign))
 
 	sign_data := data[:offset]
 
 	if common.SM2CertVerifySignature(user_cert, sign_data, r_sign) {
-		log.Println("Verify response signature succeed")
+		//log.Println("Verify response signature succeed")
 	} else {
-		log.Println("Verify response signature failed")
+		//log.Println("Verify response signature failed")
 		return nil, ErrVerifySignature
 	}
 	//log.Println("got signature 0x", hex.EncodeToString(r_sign))
@@ -144,12 +154,12 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 	//	log.Println("in EncryptLoginPktSM2 privkdata", string(privkdata))
 	privk, err := common.SM2ReadPrivateKeyFromMem(privkdata)
 	if err != nil {
-		log.Println("read private key failed, err", err)
+		//log.Println("read private key failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 	user_cert, err := common.SM2ReadCertificateFromMem(userCertData)
 	if err != nil {
-		log.Println("read certificate failed, err", err)
+		//log.Println("read certificate failed, err", err)
 		return nil, ErrParsePemFailed
 	}
 
@@ -159,7 +169,7 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 
 	cmd.EncPacket, err = common.SM2CertEncrypt(user_cert, data)
 	if err != nil {
-		log.Println("cert encrypt failed, err ", err)
+		//log.Println("cert encrypt failed, err ", err)
 		return nil, ErrSM2CertEncrypt
 	}
 
@@ -168,4 +178,114 @@ func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, 
 		return nil, ErrSM2Signature
 	}
 	return cmd.Data(), nil
+}
+
+func genSerialNumber() *big.Int {
+	var max, _ = new(big.Int).SetString("1000000000000000000000000", 10)
+	r, _ := rand.Int(rand.Reader, max)
+	return r
+}
+
+func ValidateCSRFromPem(csr_path string, ca_path string, ca_pri string,
+	duration int, out_crt string) error {
+	// load CA key pair
+	//      public key
+	caCRT, err := sm2.ReadCertificateFromPem(ca_path)
+	if err != nil {
+		return err
+	}
+
+	//      private key
+	caPrivateKey, err := sm2.ReadPrivateKeyFromPem(ca_pri, nil) //[]byte("123456"))
+	if err != nil {
+		return err
+	}
+
+	// load client certificate request
+	clientCSR, err := sm2.ReadCertificateRequestFromPem(csr_path)
+	if err != nil {
+		return err
+	}
+
+	// create client certificate template
+	clientCRTTemplate := sm2.Certificate{
+		Signature:          clientCSR.Signature,
+		SignatureAlgorithm: clientCSR.SignatureAlgorithm,
+
+		PublicKeyAlgorithm: clientCSR.PublicKeyAlgorithm,
+		PublicKey:          clientCSR.PublicKey,
+
+		SerialNumber: genSerialNumber(),
+		Issuer:       caCRT.Subject,
+		Subject:      clientCSR.Subject,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Duration(duration) * 24 * time.Hour),
+		KeyUsage:     sm2.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []sm2.ExtKeyUsage{sm2.ExtKeyUsageClientAuth},
+	}
+
+	// create client certificate from template and CA public key
+	clientCRTRaw, err := sm2.CreateCertificate(rand.Reader, &clientCRTTemplate, caCRT, clientCSR.PublicKey, caPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	// save the certificate
+	clientCRTFile, err := os.Create(out_crt)
+	if err != nil {
+		return err
+	}
+	pem.Encode(clientCRTFile, &pem.Block{Type: "CERTIFICATE", Bytes: clientCRTRaw})
+	clientCRTFile.Close()
+
+	return nil
+}
+
+func ValidateCSRFromMem(csr string, ca string, ca_pri string,
+	duration int) (string, error) {
+	// load CA key pair
+	//      public key
+	caCRT, err := sm2.ReadCertificateFromMem([]byte(ca))
+	if err != nil {
+		return "", err
+	}
+
+	//      private key
+	caPrivateKey, err := sm2.ReadPrivateKeyFromMem([]byte(ca_pri), nil)
+	if err != nil {
+		return "", err
+	}
+
+	// load client certificate request
+	clientCSR, err := sm2.ReadCertificateRequestFromMem([]byte(csr))
+	if err != nil {
+		return "", err
+	}
+
+	// create client certificate template
+	clientCRTTemplate := sm2.Certificate{
+		Signature:          clientCSR.Signature,
+		SignatureAlgorithm: clientCSR.SignatureAlgorithm,
+
+		PublicKeyAlgorithm: clientCSR.PublicKeyAlgorithm,
+		PublicKey:          clientCSR.PublicKey,
+
+		SerialNumber: genSerialNumber(),
+		Issuer:       caCRT.Subject,
+		Subject:      clientCSR.Subject,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(time.Duration(duration) * 24 * time.Hour),
+		KeyUsage:     sm2.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []sm2.ExtKeyUsage{sm2.ExtKeyUsageClientAuth},
+	}
+
+	// create client certificate from template and CA public key
+	clientCRTRaw, err := sm2.CreateCertificate(rand.Reader, &clientCRTTemplate, caCRT, clientCSR.PublicKey, caPrivateKey)
+	if err != nil {
+		return "", err
+	}
+	d := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: clientCRTRaw})
+
+	// save the certificate
+	return string(d), nil
 }

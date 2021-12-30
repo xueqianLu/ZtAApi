@@ -64,23 +64,21 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 	return C.CString(string(d))
 }
 
-//export LightLogin
-func LightLogin(userName string, password string, server string,
-	sysinfo string) *C.char {
-	LInfo.Printf("got login parameter userName(%s), password(%s), server(%s), sysinfo(%s)\n",
-		userName, password, server, sysinfo)
-	data, err := lightLogin(userName, password, server, sysinfo)
+//export SignCertificate
+func SignCertificate(ca_pem string, ca_pri_pem string, csr string, days int) *C.char {
+	var res Response
+	//LInfo.Printf("sign certificate parameter")
+	crt, err := ValidateCSRFromMem(csr, ca_pem, ca_pri_pem, days)
 	if err != nil {
-		LError.Printf("light login failed, err:%s\n", err.Error())
-		return nil
+		//log.Printf("sign certificate failed, err:%s\n", err.Error())
+		res.Error = err.Error()
+	} else {
+		res.Data = crt
 	}
-	LInfo.Printf("response %s\n", string(data))
-	return C.CString(string(data))
+
+	d, _ := json.Marshal(res)
+	//log.Println("response:", string(d))
+	return C.CString(string(d))
 }
 
-func main() {
-	var sysinfo = "{\"hostname\":\"hostname\",\"osname\":\"osname\",\"osversion\":\"osversion\",\"osvendor\":\"osvendor\",\"hwvendor\":\"hwvendor\",\"hwserial\":\"hwserial\",\"hwtype\":\"hwtype\",\"deviceid\":\"1fc01cc9b5845071570201403aff8b83fa4f0826463c4d54a545ff2d46d4cc4a\"}"
-	//var cert = "D:\\center.pem"
-	res := LightLogin("luxueqian", "12345678", "47.93.84.115", sysinfo)
-	LInfo.Println("res = ", res)
-}
+func main() {}

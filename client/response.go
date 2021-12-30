@@ -2,7 +2,6 @@ package client
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"github.com/tjfoc/gmsm/sm2"
@@ -59,10 +58,6 @@ func GetDecryptResponseWithSign(name string, data []byte, privk *sm2.PrivateKey,
 		log.Println("Verify response signature failed")
 		return nil, errors.New("Verify response signature failed")
 	}
-	log.Println("got signature 0x", hex.EncodeToString(r_sign))
-	log.Println("got encrypt data length = ", len(r_encpac))
-	log.Println("got encrypt data:0x", hex.EncodeToString(r_encpac))
-	log.Println("decrypt with privk: 0x", privk.D.Text(16))
 
 	dec_data, err := SM2PrivDecrypt(privk, r_encpac)
 	if err != nil {

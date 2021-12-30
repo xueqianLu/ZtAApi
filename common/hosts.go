@@ -11,16 +11,12 @@ import (
 )
 
 type DomainList struct {
-	*set.Set
+	set.Interface
 }
 
 func NewDomainList(domain string) *DomainList {
-	s := set.New(domain)
-	return &DomainList{s}
-}
-
-func NewDomainListWithItems(domains ...interface{}) *DomainList {
-	s := set.New(domains)
+	s := set.New(set.ThreadSafe)
+	s.Add(domain)
 	return &DomainList{s}
 }
 
@@ -43,6 +39,11 @@ func (d *DomainList) Flatten() []string {
 }
 
 func ParseHostsFile(path string) map[string]*DomainList {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Parse host file err:", err)
+		}
+	}()
 	fi, err := os.Open(path)
 	if err != nil {
 		log.Println("open error ", err)

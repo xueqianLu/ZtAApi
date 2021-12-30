@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	. "github.com/xueqianLu/ZtAApi/common"
 	"github.com/xueqianLu/ZtAApi/conf"
+	"log"
 	"strings"
 )
 
@@ -21,6 +22,8 @@ type AdminLoginReqPacket struct {
 	Passwd      string     `json:"passwd"`
 	VerifyCode  string     `json:"verify_code"`
 	GetUrl      bool       `json:"get_url"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
 	MachineInfo SystemInfo `json:"system_info"`
 }
 
@@ -48,6 +51,9 @@ type LoginReqPacket struct {
 	VerifyCode       string     `json:"verify_code"`
 	SecondVerifyCode string     `json:"second_verifyCode"`
 	MachineInfo      SystemInfo `json:"system_info"`
+	LoginToken       string     `json:"login_token"`
+	IpAddr           string     `json:"ip"`
+	MacAddr          string     `json:"mac"`
 }
 
 func (l LoginReqPacket) Valid() bool {
@@ -73,6 +79,8 @@ type ChangePwdPacket struct {
 	Timestamp  int64  `json:"timestamp"`
 	Username   string `json:"username"`
 	Passwd     string `json:"passwd"`
+	IpAddr     string `json:"ip"`
+	MacAddr    string `json:"mac"`
 }
 
 func (c ChangePwdPacket) Valid() bool {
@@ -94,6 +102,8 @@ type ReGetVerifyCodePacket struct {
 	Username    string     `json:"username"`
 	Passwd      string     `json:"passwd"`
 	MachineInfo SystemInfo `json:"system_info"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
 }
 
 func (c ReGetVerifyCodePacket) Valid() bool {
@@ -116,6 +126,8 @@ type LogoutPacket struct {
 	Timestamp int64  `json:"timestamp"`
 	Username  string `json:"username"`
 	Passwd    string `json:"passwd"`
+	IpAddr    string `json:"ip"`
+	MacAddr   string `json:"mac"`
 }
 
 func (p LogoutPacket) Valid() bool {
@@ -137,6 +149,8 @@ type ExchangeCertPacket struct {
 	Csrdata     string     `json:"csrdata"`
 	Timestamp   int64      `json:"timestamp"`
 	MachineInfo SystemInfo `json:"system_info"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
 }
 
 func (p ExchangeCertPacket) Valid() bool {
@@ -178,6 +192,8 @@ type UserHomeReqPacket struct {
 	Timestamp int64  `json:"timestamp"`
 	Username  string `json:"username"`
 	Passwd    string `json:"passwd"`
+	IpAddr    string `json:"ip"`
+	MacAddr   string `json:"mac"`
 }
 
 func (p UserHomeReqPacket) Valid() bool {
@@ -185,6 +201,52 @@ func (p UserHomeReqPacket) Valid() bool {
 }
 
 func (p UserHomeReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
+type UserTokenReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+	Username  string `json:"username"`
+	Passwd    string `json:"passwd"`
+	IpAddr    string `json:"ip"`
+	MacAddr   string `json:"mac"`
+}
+
+func (p UserTokenReqPacket) Valid() bool {
+	return true
+}
+
+func (p UserTokenReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
+type SwitchNetReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp   int64  `json:"timestamp"`
+	Username    string `json:"username"`
+	Passwd      string `json:"passwd"`
+	Pubkey      string `json:"pubkey"`
+	NetworkMode int    `json:"mode"`
+	IpAddr      string `json:"ip"`
+	MacAddr     string `json:"mac"`
+}
+
+func (p SwitchNetReqPacket) Valid() bool {
+	return true
+}
+
+func (p SwitchNetReqPacket) Bytes() []byte {
 	bs, err := json.Marshal(p)
 	if err != nil {
 		return nil
@@ -261,6 +323,11 @@ func (p ExchangeCertResponse) String() string {
 }
 
 func ParseHostsInfo(hosts []conf.HostInfo) map[string]*DomainList {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Println("Parse Hosts Info error ", err)
+		}
+	}()
 	hostinfo := make(map[string]*DomainList)
 	for _, host := range hosts {
 		section := strings.Split(host.Domain, " ")
@@ -289,6 +356,32 @@ type UserHomeResData struct {
 }
 
 func (p UserHomeResData) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+type SwitchNetworkResponse struct {
+	SwitchNetworkResData `json:"data"`
+}
+
+type SwitchNetworkResData struct {
+	Url string `json:"url"`
+}
+
+func (p SwitchNetworkResData) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+type UserTokenResponse struct {
+	UserTokenResData `json:"data"`
+}
+
+type UserTokenResData struct {
+	Token string `json:"token"`
+}
+
+func (p UserTokenResData) String() string {
 	b, _ := json.Marshal(p)
 	return string(b)
 }
