@@ -23,6 +23,16 @@ type GatewayInfo struct {
 	AllowServers []ServerInfo `json:"allowed_servers"`
 	DNSServers   []string     `json:"dns_server"`
 }
+
+type LinkerInfo struct {
+	GWPubkey   	 string       `json:"gateway_pubkey"`
+	LKPubkey     string       `json:"linker_connection_pubkey"`
+	EndPoint     string       `json:"linker_endpoint"`
+	Id           int          `json:"linker_id"`
+	AllowServers []ServerInfo `json:"allowed_servers"`
+	DNSServers   []string     `json:"dns_server"`
+}
+
 type IpPair struct {
 	Ip   string `json:"ip"`
 	Mask string `json:"mask"`
@@ -35,6 +45,7 @@ type AllConfigInfo struct {
 	HomeUrl             string        `json:"url"`
 	ClientIp            string        `json:"client_ip"`
 	Gateway             []GatewayInfo `json:"gateway"`
+	Linkers             []LinkerInfo  `json:"linkers"`
 	Hosts               []HostInfo    `json:"hosts"`
 	Extradata           interface{}   `json:"extra_data"`
 	NetworkMode         int           `json:"networkDefault"`
