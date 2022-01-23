@@ -56,6 +56,7 @@ type UserCmd struct {
 	UserIndex   Hash
 	DeviceIndex Hash
 	Random      Hash
+	SubDomain   Hash
 	CmdType     byte
 	EncLength   [2]byte
 	EncPacket   []byte
@@ -70,7 +71,7 @@ func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
 	s := make([]byte, 1)
 	s[0] = u.CmdType
 
-	data := BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.EncLength[:], u.EncPacket[:])
+	data := BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.SubDomain[:], u.EncLength[:], u.EncPacket[:])
 
 	signature, err := SM2PrivSign(privk, data)
 	if err != nil {
@@ -88,17 +89,21 @@ func (u *UserCmd) Type() byte {
 func (u *UserCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = u.CmdType
-	return BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.EncLength[:], u.EncPacket, u.Signature[:])
+	return BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.SubDomain[:], u.EncLength[:], u.EncPacket, u.Signature[:])
 }
 
-func NewUserCommand(username string, deviceid string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate, packet *Packet) *UserCmd {
+func NewUserCommand(username string, deviceid string, domain string, privk *sm2.PrivateKey, manager_cert *sm2.Certificate, packet *Packet) *UserCmd {
 	var err error
+	var subdomain [32]byte
+	copy(subdomain[:], domain)
+
 	var cmdtype = packet.Type()
 	cmd := &UserCmd{CmdType: cmdtype}
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(username)), cmd.Random[:]))
 	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
+	cmd.SubDomain.SetBytes(BytesXor(subdomain[:], cmd.Random[:]))
 
 	cmd.EncPacket, err = SM2CertEncrypt(manager_cert, packet.Bytes())
 	if err != nil {
@@ -130,7 +135,7 @@ func NewLoginCmd(local *conf.StorageConfig, pubkey string, deviceId string,
 	//log.Println("loginReqpacket:", string(lp.Bytes()))
 
 	p := &Packet{NormalUserLogin, lp.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -150,7 +155,7 @@ func NewLoginCmdWithToken(local *conf.StorageConfig, pubkey string, deviceId str
 	//log.Println("loginReqpacket:", string(lp.Bytes()))
 
 	p := &Packet{NormalUserLogin, lp.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -166,7 +171,7 @@ func NewAdminLoginCmd(local *conf.StorageConfig, deviceId string, privk *sm2.Pri
 	}
 
 	p := &Packet{AdminLoginMsg, lp.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -177,7 +182,7 @@ func NewAdminRegetVerifyCodeCmd(local *conf.StorageConfig, deviceId string, priv
 		Username: local.UserName, Passwd: local.Password, MachineInfo: sysinfo,
 		IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{AdminReGetVerifyCode, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -187,7 +192,7 @@ func NewChangePwdCmd(local *conf.StorageConfig, deviceId string, newpwd string, 
 	c := ChangePwdPacket{OldPwdHash: hex.EncodeToString(oldpwdhash), NewPasswd: newpwd, Timestamp: time.Now().Unix(),
 		Username: local.LocalAddr, Passwd: local.Password, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserChangPwd, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -197,7 +202,7 @@ func NewRegetVerifyCodeCmd(local *conf.StorageConfig, deviceId string, privk *sm
 	c := ReGetVerifyCodePacket{Timestamp: time.Now().Unix(),
 		Username: local.UserName, Passwd: local.Password, MachineInfo: sysinfo, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserRegetVerifyCode, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -207,7 +212,7 @@ func NewLogoutCmd(local *conf.StorageConfig, deviceId string, pubkey string, pri
 	c := LogoutPacket{PwdHash: hex.EncodeToString(pwdhash), Pubkey: pubkey, Timestamp: time.Now().Unix(),
 		Username: local.UserName, Passwd: local.Password, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserLogout, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -215,7 +220,7 @@ func NewLogoutCmd(local *conf.StorageConfig, deviceId string, pubkey string, pri
 func NewReqUserInfoCmd(local *conf.StorageConfig, deviceId string, startOffset int, privk *sm2.PrivateKey, manager_cert *sm2.Certificate) (*UserCmd, error) {
 	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix(), Username: local.UserName, Passwd: local.Password}
 	p := &Packet{NormalUserReqSliceInfo, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -224,7 +229,7 @@ func NewReqUserHomeCmd(local *conf.StorageConfig, deviceId string, privk *sm2.Pr
 	c := UserHomeReqPacket{Timestamp: time.Now().Unix(), Username: local.UserName, Passwd: local.Password,
 		IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserReqHome, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -233,7 +238,7 @@ func NewReqUserTokenCmd(local *conf.StorageConfig, deviceId string, privk *sm2.P
 	c := UserTokenReqPacket{Timestamp: time.Now().Unix(), Username: local.UserName, Passwd: local.Password,
 		IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserGetToken, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -242,7 +247,7 @@ func NewReqSwitchNetworkCmd(local *conf.StorageConfig, deviceId string, mode int
 	c := SwitchNetReqPacket{Timestamp: time.Now().Unix(), Username: local.UserName, Passwd: local.Password, NetworkMode: mode, Pubkey: pub,
 		IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserNetworkSwitch, c.Bytes()}
-	cmd := NewUserCommand(local.UserName, deviceId, privk, manager_cert, p)
+	cmd := NewUserCommand(local.UserName, deviceId, local.Domain, privk, manager_cert, p)
 
 	return cmd, nil
 }
@@ -252,6 +257,7 @@ type HmacCmd struct {
 	UserIndex   Hash
 	DeviceIndex Hash
 	Random      Hash
+	SubDomain   Hash
 	Key         Hash
 	CmdType     byte
 	EncPacket   []byte
@@ -264,7 +270,7 @@ func (l *HmacCmd) GenHMAC(key []byte) {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
 
-	data := BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.Key[:], l.EncPacket[:])
+	data := BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.SubDomain[:], l.Key[:], l.EncPacket[:])
 	//log.Println("GenHMAC:checkval=", hex.EncodeToString(l.CheckVal[:]))
 	//log.Println("GenHMAC:userindex=", hex.EncodeToString(l.UserIndex[:]))
 	//log.Println("GenHMAC:random=", hex.EncodeToString(l.Random[:]))
@@ -280,17 +286,21 @@ func (l *HmacCmd) Type() byte {
 func (l *HmacCmd) Data() []byte {
 	s := make([]byte, 1)
 	s[0] = l.CmdType
-	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.Key[:], l.EncPacket, l.HMAC[:])
+	return BytesCombine(s, l.CheckVal[:], l.UserIndex[:], l.DeviceIndex[:], l.Random[:], l.SubDomain[:], l.Key[:], l.EncPacket, l.HMAC[:])
 }
 
-func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
+func NewHmacCommand(name, deviceid, pwd string, domain string, packet *Packet) *HmacCmd {
 	var cmdtype = packet.Type()
+	var subdomain [32]byte
+	copy(subdomain[:], domain)
+
 	cmd := &HmacCmd{CmdType: cmdtype}
 
 	cmd.Random = GenRandomHash()
 	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(name)), cmd.Random[:]))
 	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
+	cmd.SubDomain.SetBytes(BytesXor(subdomain[:], cmd.Random[:]))
 
 	var key1 = GenRandomHash()
 	//log.Println("in hmc command, key1 = ", hex.EncodeToString(key1[:]))
@@ -312,36 +322,36 @@ func NewHmacCommand(name, deviceid, pwd string, packet *Packet) *HmacCmd {
 	return cmd
 }
 
-func NewNormalExchangeCertCmd(local *conf.StorageConfig, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
+func NewNormalExchangeCertCmd(local *conf.StorageConfig, csr string, domain string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo,
 		Username: local.UserName, Passwd: local.Password, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserExchangeCert, c.Bytes()}
-	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, p)
+	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, domain, p)
 
 	return cmd, nil
 }
 
-func NewNormalReqCertSliceCmd(name string, passwd string, startOffset int, sysinfo SystemInfo) (*HmacCmd, error) {
+func NewNormalReqCertSliceCmd(name string, passwd string, startOffset int, domain string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix()}
 	p := &Packet{NormalUserReqCertSlice, c.Bytes()}
-	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
+	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, domain, p)
 
 	return cmd, nil
 }
 
-func NewAdminExchangeCertCmd(local *conf.StorageConfig, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
+func NewAdminExchangeCertCmd(local *conf.StorageConfig, csr string, domain string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo,
 		Username: local.UserName, Passwd: local.Password, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
-	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, p)
+	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, domain, p)
 
 	return cmd, nil
 }
 
-func NewAdminReqCertSliceCmd(name string, passwd string, startOffset int, sysinfo SystemInfo) (*HmacCmd, error) {
+func NewAdminReqCertSliceCmd(name string, passwd string, domain string, startOffset int, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix()}
 	p := &Packet{AdminReqCertSliceCmd, c.Bytes()}
-	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, p)
+	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, domain, p)
 
 	return cmd, nil
 }
