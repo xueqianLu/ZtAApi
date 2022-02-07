@@ -29,6 +29,9 @@ const (
 	AdminLoginMsg        byte = 11                     //管理员登录
 	AdminReGetVerifyCode byte = 12                     // 管理员重新获取验证码
 	AdminReqCertSliceCmd byte = NormalUserReqCertSlice // 管理员获取证书分片信息
+
+	LinkerUDPConnect       byte = 20     // linker udp connect
+	LinkerTCPConnect	byte = 21		// liner tcp connect
 )
 
 type Packet struct {
@@ -322,11 +325,46 @@ func NewHmacCommand(name, deviceid, pwd string, domain string, packet *Packet) *
 	return cmd
 }
 
-func NewNormalExchangeCertCmd(local *conf.StorageConfig, csr string, domain string, sysinfo SystemInfo) (*HmacCmd, error) {
+
+func NewLinkerHmacCommand(linkerid, deviceid string, domain string, packet *Packet) *HmacCmd {
+	var cmdtype = packet.Type()
+	var subdomain [32]byte
+	copy(subdomain[:], domain)
+
+	cmd := &HmacCmd{CmdType: cmdtype}
+
+	cmd.Random = GenRandomHash()
+	cmd.CheckVal.SetBytes(SHA256(BytesXor([]byte(ClientID), cmd.Random[:])))
+	cmd.UserIndex.SetBytes(BytesXor(SHA256([]byte(linkerid)), cmd.Random[:]))
+	cmd.DeviceIndex.SetBytes(BytesXor(SHA256([]byte(deviceid)), cmd.Random[:]))
+	cmd.SubDomain.SetBytes(BytesXor(subdomain[:], cmd.Random[:]))
+
+	var key1 = GenRandomHash()
+	//log.Println("in hmc command, key1 = ", hex.EncodeToString(key1[:]))
+	var key = BytesXor(key1[:], cmd.Random[:])
+	copy(cmd.Key[:], key)
+
+	cmd.Key2 = DevideKey(key1)
+	//log.Println("after device key = ", hex.EncodeToString(cmd.Key2))
+
+	cmd.EncPacket = SM4EncryptCBC(cmd.Key2, packet.Bytes())
+	if cmd.EncPacket == nil {
+		//log.Println("SM4Encrypt return nil")
+		return nil
+	}
+
+	cmd.GenHMAC(cmd.Key2)
+	//log.Printf("New command %v\n", cmd)
+
+	return cmd
+}
+
+
+func NewNormalExchangeCertCmd(local *conf.StorageConfig, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo,
 		Username: local.UserName, Passwd: local.Password, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{NormalUserExchangeCert, c.Bytes()}
-	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, domain, p)
+	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, local.Domain, p)
 
 	return cmd, nil
 }
@@ -339,11 +377,11 @@ func NewNormalReqCertSliceCmd(name string, passwd string, startOffset int, domai
 	return cmd, nil
 }
 
-func NewAdminExchangeCertCmd(local *conf.StorageConfig, csr string, domain string, sysinfo SystemInfo) (*HmacCmd, error) {
+func NewAdminExchangeCertCmd(local *conf.StorageConfig, csr string, sysinfo SystemInfo) (*HmacCmd, error) {
 	c := ExchangeCertPacket{Csrdata: csr, Timestamp: time.Now().Unix(), MachineInfo: sysinfo,
 		Username: local.UserName, Passwd: local.Password, IpAddr: local.LocalAddr, MacAddr: local.LocalMac}
 	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
-	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, domain, p)
+	cmd := NewHmacCommand(local.UserName, sysinfo.DeviceId, local.Password, local.Domain, p)
 
 	return cmd, nil
 }
@@ -352,6 +390,22 @@ func NewAdminReqCertSliceCmd(name string, passwd string, domain string, startOff
 	c := SliceInfoReqPacket{SliceOffset: startOffset, Timestamp: time.Now().Unix()}
 	p := &Packet{AdminReqCertSliceCmd, c.Bytes()}
 	cmd := NewHmacCommand(name, sysinfo.DeviceId, passwd, domain, p)
+
+	return cmd, nil
+}
+
+func NewLinkerUDPConnectCmd(sysinfo SystemInfo, linkerid string, subdomain string) (*HmacCmd, error) {
+	c := LinkerUDPReqPacket{Timestamp: time.Now().Unix()}
+	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
+	cmd := NewLinkerHmacCommand(linkerid, sysinfo.DeviceId, subdomain, p)
+
+	return cmd, nil
+}
+
+func NewLinkerTCPConnectCmd(sysinfo SystemInfo, linkerid string, subdomain string, localip string) (*HmacCmd, error) {
+	c := LinkerTCPReqPacket{Timestamp: time.Now().Unix(), MachineInfo: sysinfo, IpAddr: localip}
+	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
+	cmd := NewLinkerHmacCommand(linkerid, sysinfo.DeviceId, subdomain, p)
 
 	return cmd, nil
 }

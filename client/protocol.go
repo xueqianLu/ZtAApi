@@ -255,6 +255,47 @@ func (p SwitchNetReqPacket) Bytes() []byte {
 	return bs
 }
 
+
+type LinkerUDPReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+func (p LinkerUDPReqPacket) Valid() bool {
+	return true
+}
+
+func (p LinkerUDPReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
+
+type LinkerTCPReqPacket struct {
+	//Type      int    `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+	IpAddr      string     `json:"ip"`
+	MacAddr     string     `json:"mac"`
+	MachineInfo SystemInfo `json:"system_info"`
+}
+
+func (p LinkerTCPReqPacket) Valid() bool {
+	return true
+}
+
+func (p LinkerTCPReqPacket) Bytes() []byte {
+	bs, err := json.Marshal(p)
+	if err != nil {
+		return nil
+	}
+
+	return bs
+}
+
 //server response header
 type ServerResponse struct {
 	Type   int    `json:"cmd"`
@@ -382,6 +423,22 @@ type UserTokenResData struct {
 }
 
 func (p UserTokenResData) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+type LinkerUDPResponse struct {
+	Data string `json:"data"`
+}
+func (p LinkerUDPResponse) String() string {
+	b, _ := json.Marshal(p)
+	return string(b)
+}
+
+type LinkerTCPResponse struct {
+	Data string `json:"data"`
+}
+func (p LinkerTCPResponse) String() string {
 	b, _ := json.Marshal(p)
 	return string(b)
 }

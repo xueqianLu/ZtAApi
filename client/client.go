@@ -18,7 +18,8 @@ import (
 
 const (
 	ServerHost     = "127.0.0.1"
-	ServerPort     = 36680
+	ServerPort     = 36680		// udp port
+	ServerTcpPort = 36681		// tcp port
 	MaxReadBuffer  = 60000
 	RequestTimeout = time.Second * 3
 )
@@ -54,6 +55,11 @@ func SetServerInfo(local *conf.StorageConfig, serveraddr string) {
 	log.Println("set server addr ", serveraddr)
 }
 
+func SetDomainInfo(local *conf.StorageConfig, domain string) {
+	local.Domain = strings.TrimSpace(domain)
+	log.Println("set domain ", domain)
+}
+
 func GetServerInfo(local *conf.StorageConfig) string {
 	addr, err := getServerIp(local.ServerAddr)
 	if err != nil {
@@ -81,7 +87,11 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 				local.LocalMac, _ = common.GetNetIfMac(local.LocalAddr)
 				log.Println("local mac := ", local.LocalMac)
 				conn.Close()
+			} else {
+				log.Println("dial server failed, err:", err)
 			}
+		} else {
+			log.Println("use old addr info, ip = ", local.LocalAddr, ", mac=", local.LocalMac)
 		}
 	}
 
@@ -804,7 +814,7 @@ func ClientReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 	}
 
 	for retry := 0; retry < timeoutRetry; retry++ {
-		cmd, e := NewNormalReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
+		cmd, e := NewNormalReqCertSliceCmd(local.UserName, local.Password, offset, local.Domain, *local.Sysinfo)
 		if e != nil {
 			log.Println("NewReqCertSliceCmd failed", "err", e.Error())
 			return nil, e
@@ -1220,7 +1230,7 @@ func AdminReqCertSlice(local *conf.StorageConfig, offset int) (*SliceInfoResData
 		return nil, errors.New("have no scsr data")
 	}
 	for retry := 0; retry < timeoutRetry; retry++ {
-		cmd, e := NewAdminReqCertSliceCmd(local.UserName, local.Password, offset, *local.Sysinfo)
+		cmd, e := NewAdminReqCertSliceCmd(local.UserName, local.Password, local.Domain, offset, *local.Sysinfo)
 		if e != nil {
 			log.Println("NewAdminReqCertSliceCmd failed", "err", e.Error())
 			return nil, e
