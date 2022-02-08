@@ -396,7 +396,7 @@ func NewAdminReqCertSliceCmd(name string, passwd string, domain string, startOff
 
 func NewLinkerUDPConnectCmd(sysinfo SystemInfo, linkerid string, subdomain string) (*HmacCmd, error) {
 	c := LinkerUDPReqPacket{Timestamp: time.Now().Unix()}
-	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
+	p := &Packet{LinkerUDPConnect, c.Bytes()}
 	cmd := NewLinkerHmacCommand(linkerid, sysinfo.DeviceId, subdomain, p)
 
 	return cmd, nil
@@ -404,7 +404,7 @@ func NewLinkerUDPConnectCmd(sysinfo SystemInfo, linkerid string, subdomain strin
 
 func NewLinkerTCPConnectCmd(sysinfo SystemInfo, linkerid string, subdomain string, localip string) (*HmacCmd, error) {
 	c := LinkerTCPReqPacket{Timestamp: time.Now().Unix(), MachineInfo: sysinfo, IpAddr: localip}
-	p := &Packet{AdminExchangeCertMsg, c.Bytes()}
+	p := &Packet{LinkerTCPConnect, c.Bytes()}
 	cmd := NewLinkerHmacCommand(linkerid, sysinfo.DeviceId, subdomain, p)
 
 	return cmd, nil
