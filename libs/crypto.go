@@ -39,6 +39,7 @@ type decpkt struct {
 	useridx    [32]byte
 	deviceid   [32]byte
 	random     [32]byte
+	subdomain  [32]byte
 	enc_length [2]byte
 }
 
@@ -82,6 +83,11 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	offset += blength
 	r_random = r_random
 	//log.Println("r_random:", common.ToHex(r_random))
+
+	r_subdomain := data[offset : offset+blength]
+	offset += blength
+	r_subdomain = r_subdomain
+	//log.Println("r_subdomain:", common.ToHex(r_subdomain))
 
 	r_enc_length := data[offset : offset+2]
 	offset += 2
