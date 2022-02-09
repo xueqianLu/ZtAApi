@@ -29,10 +29,10 @@ type Response struct {
 func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.int) *C.char {
 	var res Response
 	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
-	//log.Println("get param data length:", cCharLength)
-	//log.Println("get param privk:", privk)
-	//log.Println("get param pubk :", pubk)
-	//log.Println("get param data :", common.ToHex(godata))
+	Info.Println("get param data length:", cCharLength)
+	Info.Println("get param privk:", privk)
+	Info.Println("get param pubk :", pubk)
+	Info.Println("get param data :", common.ToHex(godata))
 	resdata, err := DecryptLoginPktSM2(godata, []byte(privk), []byte(pubk))
 	if err != nil {
 		res.Error = err.Error()
@@ -40,7 +40,7 @@ func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.in
 		res.Data = common.ToHex(resdata)
 	}
 	d, _ := json.Marshal(res)
-	//log.Println("response:", string(d))
+	//Info.Println("response:", string(d))
 	return C.CString(string(d))
 }
 
@@ -48,11 +48,11 @@ func DecrytLoginPktSM2(privk string, pubk string, data *C.char, cCharLength C.in
 func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char, cCharLength C.int) *C.char {
 	var res Response
 	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
-	//log.Println("get param data length:", cCharLength)
-	//log.Println("get param username:", username)
-	//log.Println("get param privk:", privk)
-	//log.Println("get param pubk :", pubk)
-	//log.Println("get param data :", common.ToHex(godata))
+	//Info.Println("get param data length:", cCharLength)
+	//Info.Println("get param username:", username)
+	//Info.Println("get param privk:", privk)
+	//Info.Println("get param pubk :", pubk)
+	//Info.Println("get param data :", common.ToHex(godata))
 	resdata, err := EncryptLoginPktSM2(username, []byte(privk), []byte(pubk), godata)
 	if err != nil {
 		res.Error = err.Error()
@@ -60,7 +60,7 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 		res.Data = common.ToHex(resdata)
 	}
 	d, _ := json.Marshal(res)
-	//log.Println("response:", string(d))
+	//Info.Println("response:", string(d))
 	return C.CString(string(d))
 }
 
@@ -70,14 +70,14 @@ func SignCertificate(ca_pem string, ca_pri_pem string, csr string, days int) *C.
 	//LInfo.Printf("sign certificate parameter")
 	crt, err := ValidateCSRFromMem(csr, ca_pem, ca_pri_pem, days)
 	if err != nil {
-		//log.Printf("sign certificate failed, err:%s\n", err.Error())
+		//Info.Printf("sign certificate failed, err:%s\n", err.Error())
 		res.Error = err.Error()
 	} else {
 		res.Data = crt
 	}
 
 	d, _ := json.Marshal(res)
-	//log.Println("response:", string(d))
+	//Info.Println("response:", string(d))
 	return C.CString(string(d))
 }
 
