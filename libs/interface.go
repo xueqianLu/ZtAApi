@@ -53,7 +53,9 @@ func EncrytLoginPktSM2(username string, privk string, pubk string, data *C.char,
 	//Info.Println("get param privk:", privk)
 	//Info.Println("get param pubk :", pubk)
 	//Info.Println("get param data :", common.ToHex(godata))
-	resdata, err := EncryptLoginPktSM2(username, []byte(privk), []byte(pubk), godata)
+	domain := "zta1.qrsecure.cn"
+	deviceid := "37fca1d0ae30dbd7228c4c6de18a796ea865e3d074f791d9af010a5d5334a083"
+	resdata, err := EncryptLoginPktSM2(domain, deviceid, username, []byte(privk), []byte(pubk), godata)
 	if err != nil {
 		res.Error = err.Error()
 	} else {

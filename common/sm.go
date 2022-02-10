@@ -209,6 +209,7 @@ func SM2PrivDecrypt(priv *sm2.PrivateKey, encdata []byte) ([]byte, error) {
 	}
 	d, e := priv.Decrypt(encdata)
 	if e != nil {
+		log.Println("sm2PrivDecrypt failed with err:", e)
 		return nil, ErrSM2Decrypt
 	}
 	return d, nil

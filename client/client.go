@@ -18,8 +18,8 @@ import (
 
 const (
 	ServerHost     = "127.0.0.1"
-	ServerPort     = 36680		// udp port
-	ServerTcpPort = 36681		// tcp port
+	ServerPort     = 36680 // udp port
+	ServerTcpPort  = 36681 // tcp port
 	MaxReadBuffer  = 60000
 	RequestTimeout = time.Second * 3
 )
@@ -214,7 +214,7 @@ func GetZtALoginInfo(lg *LoginResData) string {
 func needExchangeCert(conf *conf.StorageConfig) bool {
 	managerCert := conf.User.GetManagerCert(conf.User.ServerAddr)
 
-	if conf.User.Sm2Priv != nil && managerCert != nil && conf.User.GetLastLoginStatus(conf.User.ServerAddr) {
+	if conf.User.Sm2Priv != nil && managerCert != nil {
 		return false
 	}
 	return true
