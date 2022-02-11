@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/tjfoc/gmsm/sm2"
-	"github.com/xueqianLu/ZtAApi/client"
 	"github.com/xueqianLu/ZtAApi/common"
-	"log"
 	"math/big"
 	"os"
 	"time"
@@ -118,48 +116,35 @@ func DecryptLoginPktSM2(data []byte, privkdata []byte, userCertData []byte) ([]b
 	return dec_data, nil
 }
 
-type UserCmd struct {
-	CheckVal    common.Hash
-	UserIndex   common.Hash
-	DeviceIndex common.Hash
-	Random      common.Hash
-	SubDomain   common.Hash
-	CmdType     byte
-	EncLength   [2]byte
-	EncPacket   []byte
-	Signature   []byte
+type Ucmd struct {
+	UserIndex common.Hash
+	Random    common.Hash
+	EncLength [2]byte
+	EncPacket []byte
+	Signature []byte
 }
 
-func (u *UserCmd) GenSignature(privk *sm2.PrivateKey) error {
+func (u *Ucmd) GenSignature(privk *sm2.PrivateKey) error {
 	enclen := len(u.EncPacket)
 	u.EncLength[0] = byte(enclen >> 8 & 0xff)
 	u.EncLength[1] = byte(enclen & 0xff)
 
-	s := make([]byte, 1)
-	s[0] = u.CmdType
-
-	data := common.BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.SubDomain[:], u.EncLength[:], u.EncPacket[:])
+	data := common.BytesCombine(u.UserIndex[:], u.Random[:], u.EncLength[:], u.EncPacket[:])
 
 	signature, err := common.SM2PrivSign(privk, data)
 	if err != nil {
-		//log.Println("GenSignature failed, err ", err)
+		Info.Println("GenSignature failed, err ", err)
 		return err
 	}
 	u.Signature = signature
 	return nil
 }
 
-func (u *UserCmd) Type() byte {
-	return u.CmdType
+func (u *Ucmd) Data() []byte {
+	return common.BytesCombine(u.UserIndex[:], u.Random[:], u.EncLength[:], u.EncPacket, u.Signature[:])
 }
 
-func (u *UserCmd) Data() []byte {
-	s := make([]byte, 1)
-	s[0] = u.CmdType
-	return common.BytesCombine(s, u.CheckVal[:], u.UserIndex[:], u.DeviceIndex[:], u.Random[:], u.SubDomain[:], u.EncLength[:], u.EncPacket, u.Signature[:])
-}
-
-func EncryptLoginPktSM2(domain string, deviceid string, username string, privkdata []byte, userCertData []byte, data []byte) ([]byte, error) {
+func EncryptLoginPktSM2(username string, privkdata []byte, userCertData []byte, data []byte) ([]byte, error) {
 	var err error
 	//	Info.Println("in EncryptLoginPktSM2 privkdata", string(privkdata))
 	privk, err := common.SM2ReadPrivateKeyFromMem(privkdata)
@@ -172,25 +157,20 @@ func EncryptLoginPktSM2(domain string, deviceid string, username string, privkda
 		//Info.Println("read certificate failed, err", err)
 		return nil, ErrParsePemFailed
 	}
-	var subdomain [32]byte
-	copy(subdomain[:], domain)
 
-	cmd := &UserCmd{CmdType: 2}
+	cmd := &Ucmd{}
 	cmd.Random = common.GenRandomHash()
-	cmd.CheckVal.SetBytes(common.SHA256(common.BytesXor([]byte(client.ClientID), cmd.Random[:])))
 	cmd.UserIndex.SetBytes(common.BytesXor(common.SHA256([]byte(username)), cmd.Random[:]))
-	cmd.DeviceIndex.SetBytes(common.BytesXor(common.SHA256([]byte(deviceid)), cmd.Random[:]))
-	cmd.SubDomain.SetBytes(common.BytesXor(subdomain[:], cmd.Random[:]))
 
 	cmd.EncPacket, err = common.SM2CertEncrypt(user_cert, data)
 	if err != nil {
-		log.Println("manager cert encrypt failed,", err)
-		return nil, err
+		//Info.Println("cert encrypt failed, err ", err)
+		return nil, ErrSM2CertEncrypt
 	}
 
 	if err = cmd.GenSignature(privk); err != nil {
-		log.Println("gensignature failed,", err)
-		return nil, err
+		Info.Println("gensignature failed,", err)
+		return nil, ErrSM2Signature
 	}
 	return cmd.Data(), nil
 }
