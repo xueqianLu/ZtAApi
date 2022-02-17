@@ -2,6 +2,7 @@ package main
 
 import "C"
 import (
+	"encoding/hex"
 	"encoding/json"
 	"github.com/xueqianLu/ZtAApi/common"
 	"unsafe"
@@ -78,6 +79,38 @@ func SignCertificate(ca_pem string, ca_pri_pem string, csr string, days int) *C.
 
 	d, _ := json.Marshal(res)
 	//Info.Println("response:", string(d))
+	return C.CString(string(d))
+}
+
+//export SM4Encrypt
+func SM4Encrypt(key string, data *C.char, cCharLength C.int) *C.char {
+	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
+	Info.Println("SM4Encrypt get param key:", key)
+	Info.Println("SM4Encrypt get param data :", common.ToHex(godata))
+	enc := common.SM4EncryptCBC([]byte(key), godata)
+	var res Response
+	if enc == nil {
+		res.Error = "encrypt failed"
+	} else {
+		res.Data = "0x" + hex.EncodeToString(enc)
+	}
+	d, _ := json.Marshal(res)
+	return C.CString(string(d))
+}
+
+//export SM4Decrypt
+func SM4Decrypt(key string, data *C.char, cCharLength C.int) *C.char {
+	godata := C.GoBytes(unsafe.Pointer(data), cCharLength)
+	Info.Println("SM4Decrypt get param key:", key)
+	Info.Println("SM4Decrypt get param data :", common.ToHex(godata))
+	dec := common.SM4DecryptCBC([]byte(key), godata)
+	var res Response
+	if dec == nil {
+		res.Error = "decrypt failed"
+	} else {
+		res.Data = "0x" + hex.EncodeToString(dec)
+	}
+	d, _ := json.Marshal(res)
 	return C.CString(string(d))
 }
 
