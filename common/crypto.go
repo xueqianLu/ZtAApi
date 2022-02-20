@@ -58,6 +58,10 @@ func AESDecrypt(crypted, key []byte) []byte {
 func PKCS7UnPadding(origData []byte) []byte {
 	length := len(origData)
 	unpadding := int(origData[length-1])
+	if (length-unpadding) < 0 || (length-unpadding) > length {
+		// not pkcs7padding data
+		return origData
+	}
 	return origData[:length-unpadding]
 }
 
