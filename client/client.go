@@ -68,6 +68,10 @@ func checkAndGetUserConfig(local *conf.StorageConfig) error {
 		userConfigPath, err = conf.GetUserConfigPath(local)
 		local.User, err = conf.GetUserLocalConfig(userConfigPath, local.UserName, local.ServerAddr)
 	}
+	if err != nil {
+		log.Println("get user config failed", "err", err)
+		err = ErrGetUserConfigFailed
+	}
 
 	return err
 }
@@ -86,59 +90,42 @@ func getServerIp(server string) (string, error) {
 	} else {
 		ipaddr, err := net.ResolveIPAddr("ip", server)
 		if err != nil {
-			return "", err
+			log.Println("resolve ip failed", "server", server, "err", err)
+			return "", ErrResolvServerFailed
 		} else {
 			return ipaddr.String(), nil
 		}
 	}
 }
-
+xxx
 func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]byte, error) {
 	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
+	conn.SetWriteDeadline(time.Now().Add(timeout))
 	if _, err := conn.Write(data); err != nil {
-		return nil, err
+		log.Println("request failed", "err", err)
+		if strings.Contains(err.Error(), "timeout") {
+			return nil, ErrRequestTimeout
+		}
+		return nil, ErrRequestFailed
 	}
 	conn.SetReadDeadline(time.Now().Add(timeout))
 	msg := make([]byte, MaxReadBuffer)
 
-	rlen, err := conn.Read(msg)
-	if err != nil {
-		return nil, err
+	if rlen, err := conn.Read(msg); err != nil {
+		log.Println("request failed", "err", err)
+		if strings.Contains(err.Error(), "timeout") {
+			return nil, ErrRequestTimeout
+		}
+		return nil, ErrRequestFailed
+	} else {
+		return msg[:rlen], nil
 	}
-	return msg[:rlen], nil
-	//
-	//ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	//defer cancel()
-	//
-	//ch := make(chan error, 1)
-	//readLen := 0
-	//go func() {
-	//	//log.Println("wait to read msg")
-	//	rlen, err := conn.Read(msg)
-	//	readLen = rlen
-	//	log.Println("read msg from server len ", rlen, "at time ", time.Now().String()) //, "msg", hex.EncodeToString(msg))
-	//	ch <- err
-	//}()
-	//
-	//select {
-	//case <-ctx.Done():
-	//	// request timeout
-	//	log.Println("request context timeout at ", time.Now().String())
-	//	return nil, ErrRequestTimeout
-	//case err, _ := <-ch:
-	//	if err != nil {
-	//		return nil, err
-	//	} else {
-	//		log.Println("request return with msg", hex.EncodeToString(msg[:readLen]))
-	//		return msg[:readLen], nil
-	//	}
-	//}
 }
 
 func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 	ip, err := getServerIp(local.ServerAddr)
 	if err != nil {
-		return []byte{}, errors.New(fmt.Sprintf("can't parsed server %s", local.ServerAddr))
+		return []byte{}, err
 	}
 
 	serverAddr := ip + ":" + strconv.Itoa(ServerPort)
@@ -146,15 +133,15 @@ func requestToServer(local *conf.StorageConfig, cmd Command) ([]byte, error) {
 
 	var response []byte
 	var reserr error
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 2; i++ {
 		log.Println("send request times ", i)
 		conn, err := net.Dial("udp", serverAddr)
 		if err != nil {
 			log.Println("net.Dial failed, err", err)
-			return nil, err
+			return nil, ErrRequestFailed
 		}
 
-		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*2)
+		response, reserr = requestWithTimeout(conn, cmd.Data(), time.Second*10)
 		conn.Close()
 		if reserr == ErrRequestTimeout {
 			continue
@@ -190,13 +177,14 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 
 	csr = local.User.GetScsrData()
 	if csr == nil {
-		return errors.New("have no scsr data")
+		log.Println("exchange cert failed: have no scsr data")
+		return ErrExchangeCertFailed
 	}
 
 	cmd, e := NewNormalExchangeCertCmd(local.UserName, local.Password, string(csr), sysinfo)
 	if e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
-		return e
+		return ErrExchangeCertFailed
 	}
 	res, err = requestToServer(local, cmd)
 	if err != nil {
@@ -205,13 +193,14 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	// den
 	decPac, err = GetDecryptResponseWithHmac(local.UserName, cmd.Key2, res)
 	if err != nil {
-		return err
+		log.Println("exchange cert failed: decrypt response with hmac failed", "err", err)
+		return ErrExchangeCertFailed
 	}
 
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
-		return err
+		log.Println("exchange cert failed: decpac unmarshal to server response failed", "err", err)
+		return ErrExchangeCertFailed
 	}
 	//log.Printf("decode login response status = %d\n", head.Status)
 	if head.Status != 1 {
@@ -223,8 +212,8 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	// parse res
 	var info = &ExchangeCertResponse{}
 	if err = json.Unmarshal(decPac, &info); err != nil {
-		log.Println("decpac unmarshal to LoginResponse failed.")
-		return err
+		log.Println("exchange cert failed: decpac unmarshal to ExchangeCertResponse failed", "err", err)
+		return ErrExchangeCertFailed
 	}
 
 	var certData string
@@ -232,6 +221,7 @@ func clientExchangeCert(local *conf.StorageConfig, sysinfo common.SystemInfo) er
 	var reqSliceOffset = info.SliceOffset + 1
 	for i := reqSliceOffset; i < info.SliceCount; i++ {
 		if certSlice, e := ClientReqCertSlice(local, i); e != nil {
+			log.Println("request cert slice failed", "err", e)
 			return errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
 		} else {
 			certData += certSlice.SliceInfo
@@ -282,8 +272,8 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	var sysinfo = &common.SystemInfo{}
 	err = json.Unmarshal([]byte(sysinfostr), &sysinfo)
 	if err != nil {
-		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr)
-		return nil, 1001, err
+		log.Println("ClientLogin parse sysinfo failed, sysinfo:", sysinfostr, "err", err)
+		return nil, 1001, ErrLoginFailed
 	}
 	local.Sysinfo = sysinfo
 	//log.Println("client login sysinfostr", sysinfostr)
@@ -306,7 +296,7 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 		local.User.Sm2Priv, managerCert, *sysinfo, verifyCode, secondVerify)
 	if cmd == nil || e != nil {
 		log.Println("NewLoginCmd failed", "err", e.Error())
-		return nil, 1003, e
+		return nil, 1003, ErrLoginFailed
 	}
 
 	res, err = requestToServer(local, cmd)
@@ -317,19 +307,19 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	// den
 	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return nil, 1005, err
+		return nil, 1005, ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
 	if err = json.Unmarshal(decPac, &head); err != nil {
-		log.Println("decpac unmarshal to server response failed.")
-		return nil, 1006, err
+		log.Println("decpac unmarshal to server response failed.", "err", err)
+		return nil, 1006, ErrLoginFailed
 	}
 	// parse res
 	var login = &LoginResponse{}
 	if err = json.Unmarshal(decPac, &login); err != nil {
-		log.Println("decpac unmarshal to LoginResponse failed.")
-		return nil, 1007, err
+		log.Println("decpac unmarshal to LoginResponse failed", "err", err)
+		return nil, 1007, ErrLoginFailed
 	}
 
 	//if head.Status != 1 {
@@ -343,7 +333,8 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	var reqSliceOffset = login.SliceOffset + 1
 	for i := reqSliceOffset; i < login.SliceCount; i++ {
 		if configSlice, e := ClientReqSliceInfo(local, i); e != nil {
-			return nil, 1009, errors.New(fmt.Sprintf("request userconfig failed, e:%s", e.Error()))
+			log.Println("request userconfig failed", "err", e.Error())
+			return nil, 1009, ErrLoginFailed
 		} else {
 			userConfig += configSlice.SliceInfo
 		}
@@ -354,12 +345,13 @@ func ClientLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string
 	if len(userConfig) > 0 {
 		updateServerHistory(local) // add server to history.
 		if decodedConfig, ne := common.Base64Decode(userConfig); ne != nil {
-			return nil, 1010, errors.New(fmt.Sprintf("decode userconfig failed, e:%s", ne.Error()))
+			log.Println("decode user config failed", "err", ne.Error())
+			return nil, 1010, ErrLoginFailed
 		} else {
 			log.Println("after decode base64:", decodedConfig)
 			if err = json.Unmarshal(decodedConfig, &allConfigInfo); err != nil {
-				log.Println("user login, unmarshal to allConfigInfo failed.")
-				return nil, 1011, err
+				log.Println("user login, unmarshal to allConfigInfo failed", "err", err)
+				return nil, 1011, ErrLoginFailed
 			}
 		}
 	}
@@ -397,7 +389,7 @@ func ClientLogout(local *conf.StorageConfig, force bool) error {
 		// den
 		decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 		if err != nil {
-			return err
+			return ErrDecryptFailed
 		}
 
 		head := &ServerResponse{}
@@ -434,7 +426,7 @@ func ClientChangePwd(local *conf.StorageConfig, newpwd string) error {
 	// den
 	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return err
+		return ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
@@ -465,7 +457,7 @@ func ClientReqHome(local *conf.StorageConfig) (*UserHomeResData, error) {
 	// den
 	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return nil, err
+		return nil, ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
@@ -548,7 +540,7 @@ func ClientReqSliceInfo(local *conf.StorageConfig, offset int) (*SliceInfoResDat
 	// den
 	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return nil, err
+		return nil, ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
@@ -585,7 +577,7 @@ func ClientRegetVerifyCode(local *conf.StorageConfig) error {
 	// den
 	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return err
+		return ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
@@ -708,7 +700,7 @@ func AdminLogin(local *conf.StorageConfig, sysinfostr string, verifyCode string)
 	// den
 	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return nil, err
+		return nil, ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
@@ -763,7 +755,7 @@ func AdminHomeUrl(local *conf.StorageConfig, sysinfostr string) (*AdminLoginResD
 	// den
 	decPac, err = GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return nil, err
+		return nil, ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
@@ -802,7 +794,7 @@ func AdminRegetVerifyCode(local *conf.StorageConfig) error {
 	// den
 	decPac, err := GetDecryptResponseWithSign(local.UserName, res, local.User.Sm2Priv, managerCert)
 	if err != nil {
-		return err
+		return ErrDecryptFailed
 	}
 
 	head := &ServerResponse{}
