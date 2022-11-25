@@ -97,7 +97,6 @@ func getServerIp(server string) (string, error) {
 		}
 	}
 }
-xxx
 func requestWithTimeout(conn net.Conn, data []byte, timeout time.Duration) ([]byte, error) {
 	//log.Println("write to server ", hex.EncodeToString(cmd.Data()))
 	conn.SetWriteDeadline(time.Now().Add(timeout))
