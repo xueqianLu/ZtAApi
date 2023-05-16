@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"github.com/tjfoc/gmsm/sm2"
-	. "github.com/xueqianLu/ZtAApi/common"
-	"github.com/xueqianLu/ZtAApi/conf"
+	. "github.com/ztasecure-lab/gologin/common"
+	"github.com/ztasecure-lab/gologin/conf"
 	"log"
 	"time"
 )

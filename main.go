@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"github.com/tjfoc/gmsm/sm2"
-	"github.com/xueqianLu/ZtAApi/common"
+	"github.com/ztasecure-lab/gologin/common"
 	"io/ioutil"
 	"log"
 	"math/big"

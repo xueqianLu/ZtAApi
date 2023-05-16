@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/tjfoc/gmsm/sm2"
-	"github.com/xueqianLu/ZtAApi/common"
+	"github.com/ztasecure-lab/gologin/common"
 	"io/ioutil"
 	"log"
 	"os"

@@ -1,2 +1,2 @@
-# ZtAApi
-api connect to server
+# gologin
+Common interface for client connect to server.
